@@ -75,9 +75,7 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
 .title-modes{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:8px 0}
 .mode-chip{background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.25);border-radius:30px;padding:8px 18px;font-family:"Fredoka One",cursive;font-size:14px;color:rgba(255,255,255,.8);cursor:pointer;transition:all .2s}
 .mode-chip.selected{background:var(--yellow);border-color:var(--yellow2);color:#5a3200;box-shadow:0 4px 0 var(--yellow2)}
-.btn-play{font-family:"Fredoka One",cursive;font-size:26px;background:var(--green);color:#fff;border:none;border-radius:50px;padding:16px 52px;cursor:pointer;box-shadow:0 7px 0 var(--green2);transition:all .12s;margin-top:8px}
-.btn-play:hover{transform:translateY(2px);box-shadow:0 5px 0 var(--green2)}
-.btn-play:active{transform:translateY(5px);box-shadow:0 2px 0 var(--green2)}
+
 .user-info-bar{position:fixed;top:12px;right:16px;z-index:200;display:flex;align-items:center;gap:10px}
 .user-badge{background:rgba(255,255,255,.15);border:2px solid rgba(255,255,255,.25);border-radius:30px;padding:6px 14px;font-family:"Fredoka One",cursive;font-size:14px;color:#fff}
 .logout-btn{background:rgba(244,67,54,.2);border:1px solid rgba(244,67,54,.4);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;color:#ff8a80;cursor:pointer}
@@ -371,6 +369,20 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
 .instr-tab{font-family:"Fredoka One",cursive;font-size:13px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:14px;padding:6px 14px;color:rgba(255,255,255,.7);cursor:pointer;transition:all .15s}
 .instr-tab:hover{background:rgba(124,77,255,.2);border-color:var(--purple)}
 .instr-tab.active{background:rgba(124,77,255,.3);border-color:var(--purple);color:#fff}
+
+/* TITLE MENU BUTTONS */
+.title-btn-primary{font-family:'Fredoka One',cursive;border-radius:18px;cursor:pointer;transition:all .15s;text-align:center;}
+.title-btn-primary:hover{transform:translateY(-2px);filter:brightness(1.2);}
+.title-btn-sec{font-family:'Fredoka One',cursive;font-size:14px;background:rgba(255,255,255,.07);border:2px solid;border-radius:16px;padding:11px 6px;cursor:pointer;transition:all .15s;text-align:center;}
+.title-btn-sec:hover{background:rgba(255,255,255,.14);transform:translateY(-2px);}
+
+/* PREMIUM SHOP */
+.premium-card{background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.15);border-radius:18px;padding:16px;position:relative;transition:all .15s;}
+.premium-card:hover{background:rgba(255,255,255,.1);transform:translateY(-2px);}
+.cash-card{background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.15);border-radius:16px;padding:14px 10px;text-align:center;cursor:pointer;transition:all .15s;}
+.cash-card:hover{background:rgba(255,255,255,.13);transform:translateY(-2px);}
+.buy-btn{font-family:'Fredoka One',cursive;font-size:15px;border:none;border-radius:14px;padding:10px 20px;cursor:pointer;color:#fff;white-space:nowrap;}
+.buy-btn:hover{filter:brightness(1.15);transform:translateY(-1px);}
 </style>
 </head>
 <body>
@@ -406,6 +418,8 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
   <div id="hud-mode" style="font-family:'Fredoka One',cursive;font-size:13px;color:rgba(255,255,255,.5);margin-left:auto"></div>
   <!-- User name -->
   <div id="hud-user" style="font-family:'Fredoka One',cursive;font-size:13px;color:#a78bfa;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></div>
+  <div id="hud-skip" style="font-family:'Fredoka One',cursive;font-size:13px;color:#43c47a;"></div>
+  <div id="hud-premium-icon" style="font-size:14px;display:none;" title="Premium Member">👑</div>
 </div>
 
 <!-- ═══ AUTH: LOGIN ═══ -->
@@ -573,15 +587,30 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
       <div class="mode-chip" id="chip-cogat" onclick="selectMode('cogat')">🧠 CogAT prep</div>
       <div class="mode-chip" id="chip-pathd" onclick="selectMode('pathd')">⭐ ISD Path D</div>
     </div>
-    <button class="btn-play" onclick="onPlay()">▶ PLAY</button>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;width:min(540px,94vw);margin-top:4px">
-      <button onclick="openLeaderboard()" style="font-family:'Fredoka One',cursive;font-size:15px;background:rgba(255,184,0,.2);border:2px solid rgba(255,184,0,.5);border-radius:18px;padding:12px 8px;color:#ffb800;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(255,184,0,.35)'" onmouseout="this.style.background='rgba(255,184,0,.2)'">🏆 Leaderboard</button>
-      <button onclick="showPvp()" style="font-family:'Fredoka One',cursive;font-size:15px;background:rgba(244,67,54,.2);border:2px solid rgba(244,67,54,.5);border-radius:18px;padding:12px 8px;color:#f44336;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(244,67,54,.35)'" onmouseout="this.style.background='rgba(244,67,54,.2)'">⚔️ PvP Battle</button>
-      <button onclick="showServers()" style="font-family:'Fredoka One',cursive;font-size:15px;background:rgba(0,229,255,.15);border:2px solid rgba(0,229,255,.4);border-radius:18px;padding:12px 8px;color:#00e5ff;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(0,229,255,.28)'" onmouseout="this.style.background='rgba(0,229,255,.15)'">🌐 Servers</button>
-      <button onclick="showDuel()" style="font-family:'Fredoka One',cursive;font-size:15px;background:rgba(255,100,0,.15);border:2px solid rgba(255,100,0,.4);border-radius:18px;padding:12px 8px;color:#ff6400;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(255,100,0,.28)'" onmouseout="this.style.background='rgba(255,100,0,.15)'">⚔️ Duel</button>
-      <button onclick="showTeacherOrStudent()" style="font-family:'Fredoka One',cursive;font-size:15px;background:rgba(67,196,122,.2);border:2px solid rgba(67,196,122,.5);border-radius:18px;padding:12px 8px;color:#43c47a;cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(67,196,122,.35)'" onmouseout="this.style.background='rgba(67,196,122,.2)'">🎒 My Class</button>
-      <button onclick="showInstructions()" style="font-family:'Fredoka One',cursive;font-size:15px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.2);border-radius:18px;padding:12px 8px;color:rgba(255,255,255,.8);cursor:pointer;transition:all .15s" onmouseover="this.style.background='rgba(255,255,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.08)'">📖 How to Play</button>
-    </div>
+    <!-- NEW TITLE MENU — no PLAY button, everything requires questions -->
+    <div style="display:flex;flex-direction:column;align-items:center;gap:10px;width:min(500px,96vw);margin-top:8px">
+      <!-- ROW 1: primary actions -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%">
+        <button onclick="gateAction('world','🌍 World Map','Explore worlds, fight mobs, mine ores!')" class="title-btn-primary" style="background:linear-gradient(135deg,rgba(124,77,255,.3),rgba(67,196,122,.2));border:2px solid rgba(124,77,255,.6);color:#a78bfa;font-size:17px;padding:16px 8px;">🌍 Play</button>
+        <button onclick="gateAction('craft','⚒️ Craft &amp; Upgrade','Craft tools and upgrade your gear!')" class="title-btn-primary" style="background:linear-gradient(135deg,rgba(255,184,0,.25),rgba(255,100,0,.2));border:2px solid rgba(255,184,0,.5);color:#ffb800;font-size:17px;padding:16px 8px;">⚒️ Craft</button>
+      </div>
+      <!-- ROW 2: secondary actions -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%">
+        <button onclick="gateAction('pvp','⚔️ PvP Battle','Fight a friend in real-time 3D!')" class="title-btn-sec" style="border-color:rgba(244,67,54,.5);color:#f44336;">⚔️ PvP</button>
+        <button onclick="gateAction('duel','⚔️ Direct Duel','Answer questions faster than your friend!')" class="title-btn-sec" style="border-color:rgba(255,100,0,.5);color:#ff6400;">🥊 Duel</button>
+        <button onclick="gateAction('servers','🌐 Servers','Play with classmates in a shared world!')" class="title-btn-sec" style="border-color:rgba(0,229,255,.4);color:#00e5ff;">🌐 Servers</button>
+      </div>
+      <!-- ROW 3: other -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%">
+        <button onclick="gateAction('leaderboard','🏆 Leaderboard','See the top players!')" class="title-btn-sec" style="border-color:rgba(255,184,0,.4);color:#ffb800;">🏆 Ranks</button>
+        <button onclick="gateAction('class','🎒 My Class','Join your class and view assignments!')" class="title-btn-sec" style="border-color:rgba(67,196,122,.4);color:#43c47a;">🎒 Class</button>
+        <button onclick="openPremiumShop()" class="title-btn-sec" style="border-color:rgba(255,215,0,.6);color:#ffd700;background:rgba(255,215,0,.12);">👑 Premium</button>
+      </div>
+      <!-- How to play small link -->
+      <div style="display:flex;gap:16px;margin-top:2px">
+        <button onclick="showInstructions()" style="font-family:'Fredoka One',cursive;font-size:13px;background:transparent;border:none;color:rgba(255,255,255,.4);cursor:pointer;text-decoration:underline">📖 How to Play</button>
+      </div>
+    </div></div>
     <button onclick="showTeacherLogin()" style="font-family:'Fredoka One',cursive;font-size:13px;background:transparent;border:none;color:rgba(255,255,255,.35);cursor:pointer;margin-top:4px;text-decoration:underline" onmouseover="this.style.color='rgba(67,196,122,.7)'" onmouseout="this.style.color='rgba(255,255,255,.35)'">🎓 Teacher? Login here</button>
   </div>
 </div>
@@ -923,6 +952,170 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
   </div>
   <button onclick="leaveMultiplayer()" style="position:fixed;top:64px;right:16px;font-family:'Fredoka One',cursive;font-size:13px;background:rgba(244,67,54,.2);border:2px solid rgba(244,67,54,.4);border-radius:12px;padding:6px 14px;color:#f44336;cursor:pointer;z-index:100">Leave Server</button>
 </div>
+
+
+<!-- ═══ PREMIUM SHOP ═══ -->
+<div class="screen" id="screen-premium" style="background:linear-gradient(135deg,#0a0515,#1a0530)">
+  <div style="position:fixed;inset:0;overflow-y:auto;padding:70px 16px 24px;">
+    <div style="max-width:680px;margin:0 auto;display:flex;flex-direction:column;gap:14px;">
+
+      <!-- Header -->
+      <div style="text-align:center;margin-bottom:6px">
+        <div style="font-family:'Fredoka One',cursive;font-size:38px;color:#ffd700;text-shadow:0 0 30px rgba(255,215,0,0.5);">👑 Premium Shop</div>
+        <div style="font-size:14px;color:rgba(255,255,255,.5);margin-top:4px">Real upgrades · Real benefits · Support Question Clash</div>
+        <div id="premium-badge" style="display:none;margin-top:8px;background:linear-gradient(135deg,#ffd700,#ff8800);color:#000;font-family:'Fredoka One',cursive;font-size:15px;border-radius:20px;padding:6px 20px;display:inline-block;">👑 PREMIUM MEMBER</div>
+      </div>
+
+      <!-- MEMBERSHIP TIERS -->
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#ffd700;margin:4px 0 0">✨ Memberships</div>
+
+      <!-- Bronze -->
+      <div class="premium-card" id="tier-bronze">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:36px">🥉</div>
+          <div style="flex:1">
+            <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#cd7f32">Bronze — $2.99/mo</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:4px;line-height:1.5">
+              ✅ 1.5× XP on all questions<br>
+              ✅ Answer only 2 questions instead of 3 to enter worlds<br>
+              ✅ Bronze name badge in leaderboard<br>
+              ✅ 50 Clash Cash per month
+            </div>
+          </div>
+          <button onclick="startCheckout('bronze_monthly','Bronze Membership','2.99')" class="buy-btn" style="background:#cd7f32;box-shadow:0 4px 0 #7a4a18;">Buy</button>
+        </div>
+      </div>
+
+      <!-- Gold -->
+      <div class="premium-card" id="tier-gold" style="border-color:rgba(255,215,0,.5);box-shadow:0 0 20px rgba(255,215,0,.15);">
+        <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#ffd700;color:#000;font-family:'Fredoka One',cursive;font-size:12px;border-radius:10px;padding:2px 14px;">⭐ MOST POPULAR</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:36px">🥇</div>
+          <div style="flex:1">
+            <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#ffd700">Gold — $5.99/mo</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:4px;line-height:1.5">
+              ✅ Everything in Bronze<br>
+              ✅ 2× XP on everything<br>
+              ✅ Answer only 1 question to enter worlds<br>
+              ✅ Gold glowing name in leaderboard<br>
+              ✅ Exclusive Gold sword skin<br>
+              ✅ 150 Clash Cash per month<br>
+              ✅ Skip 1 question per day
+            </div>
+          </div>
+          <button onclick="startCheckout('gold_monthly','Gold Membership','5.99')" class="buy-btn" style="background:#ffd700;color:#000;box-shadow:0 4px 0 #aa8800;">Buy</button>
+        </div>
+      </div>
+
+      <!-- Diamond -->
+      <div class="premium-card" id="tier-diamond" style="border-color:rgba(0,229,255,.4);box-shadow:0 0 20px rgba(0,229,255,.1);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div style="font-size:36px">💎</div>
+          <div style="flex:1">
+            <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#00e5ff">Diamond — $9.99/mo</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:4px;line-height:1.5">
+              ✅ Everything in Gold<br>
+              ✅ 3× XP — level up FAST<br>
+              ✅ NO questions required — enter worlds instantly<br>
+              ✅ Diamond glowing name + special crown icon<br>
+              ✅ Exclusive Diamond sword + pickaxe skins<br>
+              ✅ 400 Clash Cash per month<br>
+              ✅ Unlimited question skips<br>
+              ✅ Early access to new features
+            </div>
+          </div>
+          <button onclick="startCheckout('diamond_monthly','Diamond Membership','9.99')" class="buy-btn" style="background:linear-gradient(135deg,#00e5ff,#0088aa);box-shadow:0 4px 0 #004466;">Buy</button>
+        </div>
+      </div>
+
+      <!-- CLASH CASH -->
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#a78bfa;margin:8px 0 0">💎 Clash Cash Bundles</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+        <div class="cash-card" onclick="startCheckout('clash_100','100 Clash Cash','0.99')">
+          <div style="font-size:28px">💎</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:22px;color:#a78bfa">100</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.5)">Clash Cash</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:6px">$0.99</div>
+        </div>
+        <div class="cash-card" onclick="startCheckout('clash_500','500 Clash Cash','3.99')" style="border-color:rgba(124,77,255,.5);box-shadow:0 0 12px rgba(124,77,255,.15)">
+          <div style="font-size:28px">💎💎</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:22px;color:#a78bfa">500</div>
+          <div style="font-size:12px;color:rgba(124,77,255,.8)">+50 BONUS</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:6px">$3.99</div>
+        </div>
+        <div class="cash-card" onclick="startCheckout('clash_1200','1200 Clash Cash','7.99')" style="border-color:rgba(255,215,0,.4);box-shadow:0 0 12px rgba(255,215,0,.1)">
+          <div style="font-size:28px">💎💎💎</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:22px;color:#ffd700">1200</div>
+          <div style="font-size:12px;color:rgba(255,215,0,.8)">+200 BONUS</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:6px">$7.99</div>
+        </div>
+      </div>
+
+      <!-- QUESTION SKIPS -->
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#43c47a;margin:8px 0 0">⚡ Question Skip Passes</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="cash-card" onclick="startCheckout('skip_5','5 Skip Passes','0.99')">
+          <div style="font-size:28px">⚡</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#43c47a">5 Skips</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.5)">Skip any question</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:6px">$0.99</div>
+        </div>
+        <div class="cash-card" onclick="startCheckout('skip_20','20 Skip Passes','2.99')" style="border-color:rgba(67,196,122,.4)">
+          <div style="font-size:28px">⚡⚡</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#43c47a">20 Skips</div>
+          <div style="font-size:12px;color:rgba(67,196,122,.8)">Best value!</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:6px">$2.99</div>
+        </div>
+      </div>
+
+      <!-- XP BOOSTS -->
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#f44336;margin:8px 0 0">🔥 XP Boosts</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div class="cash-card" onclick="startCheckout('xp_boost_day','24hr 3× XP Boost','1.99')">
+          <div style="font-size:28px">🔥</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:18px;color:#f44336">3× XP</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.5)">24 hours</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:6px">$1.99</div>
+        </div>
+        <div class="cash-card" onclick="startCheckout('xp_boost_week','7-day 2× XP Boost','4.99')" style="border-color:rgba(244,67,54,.4)">
+          <div style="font-size:28px">🔥🔥</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:18px;color:#f44336">2× XP</div>
+          <div style="font-size:12px;color:rgba(255,100,0,.8)">7 days</div>
+          <div style="font-family:'Fredoka One',cursive;font-size:16px;color:#fff;margin-top:6px">$4.99</div>
+        </div>
+      </div>
+
+      <!-- TEACHER PREMIUM -->
+      <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#43c47a;margin:8px 0 0">🎓 Teacher Premium</div>
+      <div class="premium-card" style="border-color:rgba(67,196,122,.4)">
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-size:36px">🎓</div>
+          <div style="flex:1">
+            <div style="font-family:'Fredoka One',cursive;font-size:20px;color:#43c47a">Teacher Pro — $9.99/mo</div>
+            <div style="font-size:13px;color:rgba(255,255,255,.6);margin-top:4px;line-height:1.5">
+              ✅ Unlimited classes (free = 1 class)<br>
+              ✅ Export grade reports to CSV<br>
+              ✅ Custom question sets for your class<br>
+              ✅ Student progress alerts via email<br>
+              ✅ Priority support<br>
+              ✅ Remove ads from your students' game
+            </div>
+          </div>
+          <button onclick="startCheckout('teacher_pro','Teacher Pro','9.99')" class="buy-btn" style="background:#43c47a;box-shadow:0 4px 0 #226644;color:#000;">Buy</button>
+        </div>
+      </div>
+
+      <!-- Restore purchases -->
+      <div style="text-align:center;margin-top:8px">
+        <button onclick="restorePurchases()" style="font-family:'Fredoka One',cursive;font-size:13px;background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:6px 16px;color:rgba(255,255,255,.4);cursor:pointer">🔄 Restore Purchases</button>
+        <div style="font-size:11px;color:rgba(255,255,255,.25);margin-top:6px">Secure payments by Stripe · Cancel anytime</div>
+      </div>
+
+      <button onclick="showScreen('title')" class="auth-btn secondary" style="font-size:14px;padding:10px 24px;">← Back</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- ═══ LEADERBOARD ═══ -->
 <div class="screen" id="screen-leaderboard" style="background:linear-gradient(135deg,#0a0520,#1a0a4a)">
@@ -1466,6 +1659,11 @@ function afterLogin(isNew = false) {
 // ══ EARLY STUBS — needed before full definitions load ══
 function syncHud() {
   try {
+    // Premium indicator
+    const tier = getPremiumTier ? getPremiumTier() : null;
+    const pi = document.getElementById('hud-premium-icon');
+    if (pi) pi.style.display = tier ? 'block' : 'none';
+    updateSkipCount && updateSkipCount();
     document.getElementById('hud-silver').textContent = S.silver || 0;
     document.getElementById('hud-clash').textContent = S.clash || 0;
     document.getElementById('hud-scrap').textContent = S.scrap || 0;
@@ -7076,8 +7274,12 @@ function startPvpArena(){
 
   pvpCamera=new THREE.PerspectiveCamera(75,W/H,0.05,100);
   // Host spawns south, joiner spawns north
-  pvpCamera.position.set(0,1.7,pvpIsHost?10:-10);
-  pvpYaw=pvpIsHost?Math.PI:0;
+  // P1 (host) spawns south facing north, P2 (joiner) spawns north facing south
+  // Keep them well separated — 20 units apart
+  const mySpawnZ = pvpIsHost ? 10 : -10;
+  const oppSpawnZ = pvpIsHost ? -10 : 10;
+  pvpCamera.position.set(0, 1.7, mySpawnZ);
+  pvpYaw = pvpIsHost ? Math.PI : 0; // face toward opponent
 
   pvpRenderer=new THREE.WebGLRenderer({canvas,antialias:true});
   pvpRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
@@ -7108,8 +7310,19 @@ function startPvpArena(){
   startPvpRoundTimer();
 
   // Position opponent on opposite side
+  // Opponent starts at THEIR spawn, not ours
   pvpOppPos={x:0,y:0,z:pvpIsHost?-10:10};
-  if(pvpOppMesh) pvpOppMesh.position.set(pvpOppPos.x,pvpOppPos.y,pvpOppPos.z);
+  pvpOppHp=100; pvpOppMaxHp=100;
+  pvpMyHp=100; pvpMyMaxHp=100;
+  pvpMyKills=0; pvpOppKills_kills=0;
+  pvpDmgReceivedTotal=0; pvpDamageSentTotal=0;
+  if(pvpOppMesh){
+    pvpOppMesh.position.set(pvpOppPos.x, 0, pvpOppPos.z);
+    pvpOppMesh.visible=true;
+    // Reset opp HP bar
+    const hf=pvpOppMesh.userData&&pvpOppMesh.userData.hpFill;
+    if(hf){hf.scale.x=1;hf.position.x=0;hf.material.color.setHex(0x44cc00);}
+  }
 
   let t=0;
   function pvpLoop(){
@@ -7337,6 +7550,15 @@ function animatePvpOpp(t){
   // Smooth interpolate to server position
   pvpOppMesh.position.x+=(pvpOppPos.x-pvpOppMesh.position.x)*0.15;
   pvpOppMesh.position.z+=(pvpOppPos.z-pvpOppMesh.position.z)*0.15;
+  // Push opponent mesh away if overlapping camera (prevents spawning inside them)
+  const camDx=pvpOppMesh.position.x-pvpCamera.position.x;
+  const camDz=pvpOppMesh.position.z-pvpCamera.position.z;
+  const camDist=Math.sqrt(camDx*camDx+camDz*camDz);
+  if(camDist<1.0&&camDist>0.01){
+    const push=1.0/camDist;
+    pvpOppMesh.position.x+=camDx*push*0.15;
+    pvpOppMesh.position.z+=camDz*push*0.15;
+  }
   // Face the player camera
   pvpOppMesh.lookAt(pvpCamera.position.x,pvpOppMesh.position.y,pvpCamera.position.z);
   // Walk bob
@@ -7440,7 +7662,9 @@ function pvpSwingSword(){
   const dz=pvpOppPos.z-pvpCamera.position.z;
   const dist=Math.sqrt(dx*dx+dz*dz);
 
-  if(dist<12.0){ // hit anywhere within half the arena
+  // Must be within sword range (5 units) but NOT overlapping (>0.5 units)
+  // This prevents hitting through walls and spawn-kills
+  if(dist < 5.0 && dist > 0.4){
     const crit=Math.random()<0.1+sl*0.04;
     const dmg=Math.round((10+sl*3)*tier.attackMult*(0.85+Math.random()*0.3)*(crit?2:1));
 
@@ -7564,28 +7788,18 @@ function handlePvpChannelMsg(data){
     pvpOppPos.x = data.x;
     pvpOppPos.z = data.z;
   }
-  // Damage dealt to me
+  // Someone hit ME — reduce MY hp
   if(data.type === 'hit'){
     pvpMyHp = Math.max(0, pvpMyHp - data.dmg);
     showWorldDmg('-' + data.dmg, '#ff2200');
     flashScreen('rgba(255,0,0,0.35)');
     updatePvpHud();
-    // Send MY current HP back so attacker can see it
-    pvpBroadcast({type:'hp', hp:pvpMyHp});
     if(pvpMyHp <= 0) pvpPlayerDied();
   }
-  // Opponent's HP update (from their 'hit' response)
-  if(data.type === 'hp'){
-    pvpOppHp = data.hp;
-    updatePvpHud();
-    // Update 3D HP bar above opponent mesh
-    const hf=pvpOppMesh&&pvpOppMesh.userData&&pvpOppMesh.userData.hpFill;
-    if(hf){ 
-      const pct=pvpOppHp/pvpOppMaxHp;
-      hf.scale.x=Math.max(0.01,pct); 
-      hf.position.x=-(1.38*(1-pct)/2); 
-      hf.material.color.setHex(pct>0.5?0x44cc00:pct>0.25?0xffaa00:0xff2200); 
-    }
+  // Opponent position update
+  if(data.type === 'pos'){
+    pvpOppPos.x = data.x;
+    pvpOppPos.z = data.z;
   }
   // Kill notification
   if(data.type === 'killed'){
@@ -7606,8 +7820,12 @@ function pvpBroadcast(data){
   }
   // ALSO always send via Sheets for cross-device AND as backup
   if(data.type === 'pos'){
-    sheetsCall('pvpPoll',{code:pvpRoomCode,email:currentUser.email,
-      role:pvpIsHost?'p1':'p2',x:data.x.toFixed(2),z:data.z.toFixed(2)}).catch(()=>{});
+    // Only send to Sheets every 3rd broadcast to avoid rate limiting
+    pvpPosBroadcastCount=(pvpPosBroadcastCount||0)+1;
+    if(pvpPosBroadcastCount%3===0){
+      sheetsCall('pvpPoll',{code:pvpRoomCode,email:currentUser.email,
+        role:pvpIsHost?'p1':'p2',x:data.x.toFixed(2),z:data.z.toFixed(2)}).catch(()=>{});
+    }
   }
   if(data.type === 'hit'){
     sheetsCall('pvpAnswer',{code:pvpRoomCode,email:currentUser.email,
@@ -7633,7 +7851,8 @@ async function pollPvpState(){
         pvpOppPos.x = parseFloat(res.oppX);
         pvpOppPos.z = parseFloat(res.oppZ);
       }
-      // Cross-device damage
+      // Cross-device damage (only when NOT on same device)
+      // Same device uses BroadcastChannel which is instant and accurate
       if(!pvpChannel){
         const newOppDmgTotal = res.oppScore||0;
         if(newOppDmgTotal > pvpDmgReceivedTotal){
@@ -7645,6 +7864,11 @@ async function pollPvpState(){
           updatePvpHud();
           if(pvpMyHp<=0) pvpPlayerDied();
         }
+        // Cross-device position
+        if(res.oppX!==undefined){
+          pvpOppPos.x=parseFloat(res.oppX);
+          pvpOppPos.z=parseFloat(res.oppZ);
+        }
       }
     }
   } catch(err){}
@@ -7654,7 +7878,7 @@ async function pollPvpState(){
 }
 
 // Track kills separately from damage
-var pvpMyKills=0, pvpOppKills_kills=0, pvpDamageSentTotal=0, pvpDmgReceivedTotal=0;
+var pvpMyKills=0, pvpOppKills_kills=0, pvpDamageSentTotal=0, pvpDmgReceivedTotal=0, pvpPosBroadcastCount=0;
 
 function pvpPlayerDied(){
   pvpDead=true; pvpRespawnTimer=3;
@@ -7669,12 +7893,13 @@ function pvpPlayerDied(){
 function respawnPvpPlayer(){
   pvpDead=false;
   pvpMyHp=pvpMyMaxHp;
-  pvpCamera.position.set(0,1.7,pvpIsHost?10:-10);
-  pvpYaw=pvpIsHost?Math.PI:0;
+  // Respawn at own base — P1 at +z, P2 at -z
+  const spawnZ = pvpIsHost ? 10 : -10;
+  pvpCamera.position.set((Math.random()-0.5)*3, 1.7, spawnZ);
+  pvpYaw = pvpIsHost ? Math.PI : 0;
   flashScreen('rgba(0,255,0,0.3)');
   updatePvpHud();
-  toast('🟢 Respawned!','green-toast');
-  pvpDamageSentTotal=0; // reset so server score resets per life
+  toast('🟢 Respawned at base!','green-toast');
 }
 
 function pvpKilledOpponent(){
@@ -7757,7 +7982,13 @@ function endPvpRound(iWon){
         pvpMyHp=100; pvpOppHp=100;
         pvpMyKills=0; pvpOppKills_kills=0;
         pvpDamageSentTotal=0; pvpDmgReceivedTotal=0;
-        pvpCamera.position.set(0,1.7,pvpIsHost?10:-10);
+        pvpDead=false;
+        // Reset to own base between rounds
+        const rspawnZ=pvpIsHost?10:-10;
+        pvpCamera.position.set(0,1.7,rspawnZ);
+        pvpYaw=pvpIsHost?Math.PI:0;
+        pvpOppPos={x:0,y:0,z:pvpIsHost?-10:10};
+        if(pvpOppMesh){pvpOppMesh.position.set(pvpOppPos.x,0,pvpOppPos.z);pvpOppMesh.visible=true;}
         updatePvpHud();
         pvpPollInterval=setInterval(pollPvpState,800);
         startPvpRoundTimer();
@@ -8014,6 +8245,361 @@ function showInstrTab(tab){
   const content=document.getElementById('itab-content-'+tab);
   if(btn)btn.classList.add('active');
   if(content)content.style.display='block';
+}
+
+// ════════════════════════════════════════════
+// QUESTION GATE SYSTEM
+// Every button requires 1-3 questions answered first
+// Premium reduces or removes question requirements
+// ════════════════════════════════════════════
+
+// Gate config: how many questions needed per action
+const GATE_CONFIG = {
+  world:       { required: 3, label: '🌍 Enter World Map' },
+  craft:       { required: 3, label: '⚒️ Open Crafting' },
+  pvp:         { required: 2, label: '⚔️ Enter PvP' },
+  duel:        { required: 2, label: '🥊 Start Duel' },
+  servers:     { required: 2, label: '🌐 Join Servers' },
+  leaderboard: { required: 1, label: '🏆 View Leaderboard' },
+  class:       { required: 1, label: '🎒 Open Class' },
+};
+
+var gateTarget = null;    // where to go after gate
+var gateAnswered = 0;     // questions answered this gate
+var gateRequired = 3;     // questions needed
+var gateLabel = '';       // display label
+var gatePool = [];        // shuffled questions for this gate
+var gatePoolIdx = 0;
+
+function getPremiumTier() {
+  // Returns: 'diamond' | 'gold' | 'bronze' | null
+  if (!S.premium) return null;
+  if (Date.now() > (S.premium.expires || 0)) return null;
+  return S.premium.tier || null;
+}
+function getQuestionsRequired(action) {
+  const tier = getPremiumTier();
+  const base = (GATE_CONFIG[action] || { required: 3 }).required;
+  const skips = S.skipPasses || 0;
+  if (tier === 'diamond') return 0;
+  if (tier === 'gold') return Math.max(0, base - 2);
+  if (tier === 'bronze') return Math.max(1, base - 1);
+  return base;
+}
+
+function gateAction(action, label, desc) {
+  if (!currentUser) { toast('Log in first! 🎮', 'gold-toast'); return; }
+  const required = getQuestionsRequired(action);
+  // Diamond = instant access
+  if (required === 0) {
+    executeGateAction(action);
+    return;
+  }
+  // Skip passes
+  if ((S.skipPasses || 0) >= required) {
+    const use = confirm(`Use ${required} skip pass(es) to skip questions? You have ${S.skipPasses}.`);
+    if (use) { S.skipPasses = (S.skipPasses || 0) - required; saveProgress(); executeGateAction(action); return; }
+  }
+  // Show question gate
+  gateTarget = action;
+  gateLabel = label || action;
+  gateRequired = required;
+  gateAnswered = 0;
+  gatePool = shuffle([...getPool()]);
+  gatePoolIdx = 0;
+  showGateScreen();
+}
+
+function showGateScreen() {
+  // Show the gate overlay
+  const overlay = document.getElementById('gate-overlay');
+  if (!overlay) { buildGateOverlay(); }
+  updateGateOverlay();
+  document.getElementById('gate-overlay').style.display = 'flex';
+}
+
+function buildGateOverlay() {
+  const div = document.createElement('div');
+  div.id = 'gate-overlay';
+  div.style.cssText = 'position:fixed;inset:0;background:rgba(8,4,24,0.97);display:flex;align-items:center;justify-content:center;z-index:9000;padding:20px;';
+  div.innerHTML = `
+    <div style="width:min(520px,96vw);display:flex;flex-direction:column;gap:16px">
+      <div id="gate-header" style="text-align:center">
+        <div id="gate-label" style="font-family:'Fredoka One',cursive;font-size:22px;color:#a78bfa;margin-bottom:4px"></div>
+        <div style="font-size:14px;color:rgba(255,255,255,.5)">Answer questions to unlock</div>
+        <div id="gate-pips" style="display:flex;gap:8px;justify-content:center;margin-top:10px"></div>
+      </div>
+      <div id="gate-q-box" style="background:rgba(255,255,255,.06);border:2px solid rgba(124,77,255,.3);border-radius:18px;padding:20px">
+        <div id="gate-q-text" style="font-family:'Fredoka One',cursive;font-size:20px;color:#fff;margin-bottom:16px;line-height:1.4"></div>
+        <div id="gate-answers" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div id="gate-feedback" style="font-family:'Fredoka One',cursive;font-size:18px;text-align:center;min-height:28px;margin-top:10px"></div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button onclick="closeGate()" class="auth-btn secondary" style="font-size:14px;padding:8px 20px">✕ Cancel</button>
+        <button onclick="openPremiumShop()" style="font-family:'Fredoka One',cursive;font-size:14px;background:rgba(255,215,0,.15);border:2px solid rgba(255,215,0,.4);border-radius:14px;padding:8px 18px;color:#ffd700;cursor:pointer">👑 Get Premium — Skip Questions</button>
+      </div>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+function updateGateOverlay() {
+  const lbl = document.getElementById('gate-label');
+  if (lbl) lbl.textContent = gateLabel;
+  // Pips
+  const pips = document.getElementById('gate-pips');
+  if (pips) {
+    pips.innerHTML = '';
+    for (let i = 0; i < gateRequired; i++) {
+      const pip = document.createElement('div');
+      pip.style.cssText = `width:22px;height:22px;border-radius:50%;border:2px solid ${i < gateAnswered ? '#a78bfa' : 'rgba(124,77,255,.3)'};background:${i < gateAnswered ? '#a78bfa' : 'transparent'};transition:all .2s;`;
+      pips.appendChild(pip);
+    }
+  }
+  loadGateQuestion();
+}
+
+function loadGateQuestion() {
+  if (gatePoolIdx >= gatePool.length) {
+    gatePool = shuffle([...getPool()]);
+    gatePoolIdx = 0;
+  }
+  const q = gatePool[gatePoolIdx++];
+  if (!q) return;
+  const qText = document.getElementById('gate-q-text');
+  const answers = document.getElementById('gate-answers');
+  const fb = document.getElementById('gate-feedback');
+  if (!qText || !answers) return;
+  qText.textContent = q.q;
+  fb.textContent = '';
+  answers.innerHTML = '';
+  q.opts.forEach((opt, i) => {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'font-family:"Fredoka One",cursive;font-size:16px;background:rgba(255,255,255,.07);border:2px solid rgba(255,255,255,.14);border-radius:13px;padding:12px 16px;color:#fff;cursor:pointer;text-align:left;transition:all .12s;width:100%';
+    btn.textContent = opt;
+    btn.onclick = () => answerGateQuestion(i, q.ans, btn, answers);
+    answers.appendChild(btn);
+  });
+}
+
+function answerGateQuestion(idx, correct, btn, answersDiv) {
+  answersDiv.querySelectorAll('button').forEach(b => b.disabled = true);
+  const fb = document.getElementById('gate-feedback');
+  if (idx === correct) {
+    btn.style.background = 'rgba(76,175,80,.35)';
+    btn.style.borderColor = '#4caf50';
+    if (fb) fb.textContent = '✅ Correct! +' + (10 + Math.floor(Math.random()*20)) + ' XP';
+    if (fb) fb.style.color = '#43c47a';
+    addXp(15);
+    gateAnswered++;
+    updateGatePips();
+    if (gateAnswered >= gateRequired) {
+      setTimeout(() => {
+        closeGate();
+        executeGateAction(gateTarget);
+      }, 700);
+    } else {
+      setTimeout(loadGateQuestion, 900);
+    }
+  } else {
+    btn.style.background = 'rgba(244,67,54,.2)';
+    btn.style.borderColor = '#f44336';
+    answersDiv.querySelectorAll('button')[correct].style.background = 'rgba(76,175,80,.35)';
+    answersDiv.querySelectorAll('button')[correct].style.borderColor = '#4caf50';
+    if (fb) { fb.textContent = '❌ Wrong — try again!'; fb.style.color = '#f44336'; }
+    setTimeout(() => {
+      answersDiv.querySelectorAll('button').forEach(b => { b.style.background = 'rgba(255,255,255,.07)'; b.style.borderColor = 'rgba(255,255,255,.14)'; b.disabled = false; });
+      if (fb) fb.textContent = '';
+    }, 900);
+  }
+}
+
+function updateGatePips() {
+  const pips = document.getElementById('gate-pips');
+  if (!pips) return;
+  pips.querySelectorAll('div').forEach((pip, i) => {
+    if (i < gateAnswered) {
+      pip.style.background = '#a78bfa';
+      pip.style.borderColor = '#a78bfa';
+    }
+  });
+}
+
+function closeGate() {
+  const o = document.getElementById('gate-overlay');
+  if (o) o.style.display = 'none';
+}
+
+function executeGateAction(action) {
+  const map = {
+    world: () => showScreen('worldmap'),
+    craft: () => { showScreen('lab'); setTimeout(() => openCraft(), 400); },
+    pvp: () => showPvp(),
+    duel: () => showDuel(),
+    servers: () => showServers(),
+    leaderboard: () => openLeaderboard(),
+    class: () => showTeacherOrStudent(),
+  };
+  if (map[action]) map[action]();
+}
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ════════════════════════════════════════════
+// STRIPE PAYMENT SYSTEM
+// ════════════════════════════════════════════
+
+// PASTE YOUR STRIPE PUBLISHABLE KEY HERE:
+const STRIPE_KEY = 'pk_live_YOUR_STRIPE_KEY_HERE';
+// Stripe Payment Links — create these in your Stripe dashboard
+// and paste the URLs here:
+const STRIPE_LINKS = {
+  bronze_monthly:  'https://buy.stripe.com/YOUR_BRONZE_LINK',
+  gold_monthly:    'https://buy.stripe.com/YOUR_GOLD_LINK',
+  diamond_monthly: 'https://buy.stripe.com/YOUR_DIAMOND_LINK',
+  teacher_pro:     'https://buy.stripe.com/YOUR_TEACHER_LINK',
+  clash_100:       'https://buy.stripe.com/YOUR_CLASH100_LINK',
+  clash_500:       'https://buy.stripe.com/YOUR_CLASH500_LINK',
+  clash_1200:      'https://buy.stripe.com/YOUR_CLASH1200_LINK',
+  skip_5:          'https://buy.stripe.com/YOUR_SKIP5_LINK',
+  skip_20:         'https://buy.stripe.com/YOUR_SKIP20_LINK',
+  xp_boost_day:    'https://buy.stripe.com/YOUR_XPDAY_LINK',
+  xp_boost_week:   'https://buy.stripe.com/YOUR_XPWEEK_LINK',
+};
+
+// What each product gives the player:
+const PRODUCT_REWARDS = {
+  bronze_monthly:  { type:'membership', tier:'bronze', clashCash:50,  xpMult:1.5, questionsReq:-1, expires:30 },
+  gold_monthly:    { type:'membership', tier:'gold',   clashCash:150, xpMult:2.0, questionsReq:-2, expires:30 },
+  diamond_monthly: { type:'membership', tier:'diamond',clashCash:400, xpMult:3.0, questionsReq:-99,expires:30 },
+  teacher_pro:     { type:'teacher_pro', expires:30 },
+  clash_100:       { type:'clash',   amount:100 },
+  clash_500:       { type:'clash',   amount:550 },
+  clash_1200:      { type:'clash',   amount:1400 },
+  skip_5:          { type:'skips',   amount:5 },
+  skip_20:         { type:'skips',   amount:20 },
+  xp_boost_day:    { type:'xp_boost', mult:3, hours:24 },
+  xp_boost_week:   { type:'xp_boost', mult:2, hours:168 },
+};
+
+function openPremiumShop() {
+  showScreen('premium');
+  updatePremiumBadge();
+}
+
+function updatePremiumBadge() {
+  const tier = getPremiumTier();
+  const badge = document.getElementById('premium-badge');
+  if (badge) {
+    if (tier) {
+      badge.style.display = 'inline-block';
+      badge.textContent = { bronze:'🥉 BRONZE MEMBER', gold:'🥇 GOLD MEMBER', diamond:'💎 DIAMOND MEMBER' }[tier] || '👑 PREMIUM';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+}
+
+function startCheckout(productId, name, price) {
+  if (!currentUser) { toast('Log in first to purchase!', 'gold-toast'); return; }
+  const link = STRIPE_LINKS[productId];
+  if (!link || link.includes('YOUR_')) {
+    // Demo mode — show what would happen
+    if (confirm(`🛒 DEMO MODE\n\nProduct: ${name}\nPrice: $${price}/mo\n\nIn production, this opens Stripe checkout.\n\nSimulate purchase for testing?`)) {
+      simulatePurchase(productId);
+    }
+    return;
+  }
+  // Real Stripe checkout — open in new tab with prefilled email
+  const url = link + (currentUser.email ? `?prefilled_email=${encodeURIComponent(currentUser.email)}&client_reference_id=${encodeURIComponent(currentUser.email + '_' + productId)}` : '');
+  window.open(url, '_blank');
+  // Poll for completion (check after user returns)
+  toast('💳 Complete your purchase in the new tab, then click "Restore Purchases"', 'gold-toast');
+}
+
+function simulatePurchase(productId) {
+  // For testing without real Stripe — grants the reward instantly
+  const reward = PRODUCT_REWARDS[productId];
+  if (!reward) return;
+  applyReward(productId, reward);
+  toast('✅ Simulated purchase applied!', 'green-toast');
+  showScreen('premium');
+  updatePremiumBadge();
+}
+
+function applyReward(productId, reward) {
+  if (!reward) return;
+  if (reward.type === 'membership') {
+    S.premium = {
+      tier: reward.tier,
+      expires: Date.now() + reward.expires * 24 * 60 * 60 * 1000,
+      xpMult: reward.xpMult,
+    };
+    S.clash = (S.clash || 0) + (reward.clashCash || 0);
+    toast(`👑 ${reward.tier.toUpperCase()} membership activated!`, 'gold-toast');
+    particles('👑');
+  } else if (reward.type === 'clash') {
+    S.clash = (S.clash || 0) + reward.amount;
+    toast(`💎 +${reward.amount} Clash Cash added!`, 'gold-toast');
+    particles('💎');
+  } else if (reward.type === 'skips') {
+    S.skipPasses = (S.skipPasses || 0) + reward.amount;
+    toast(`⚡ +${reward.amount} Skip Passes added!`, 'gold-toast');
+    particles('⚡');
+  } else if (reward.type === 'xp_boost') {
+    S.xpBoost = { mult: reward.mult, expires: Date.now() + reward.hours * 3600000 };
+    toast(`🔥 ${reward.mult}× XP Boost active for ${reward.hours < 48 ? reward.hours + ' hours' : Math.round(reward.hours/24) + ' days'}!`, 'gold-toast');
+    particles('🔥');
+  } else if (reward.type === 'teacher_pro') {
+    S.teacherPro = { expires: Date.now() + reward.expires * 24 * 60 * 60 * 1000 };
+    toast('🎓 Teacher Pro activated!', 'green-toast');
+  }
+  syncHud(); saveProgress();
+}
+
+// Hook addXp to apply premium multipliers
+const _gateOrigAddXp = typeof addXp !== 'undefined' ? addXp : null;
+function addXpPremium(amount, src) {
+  let mult = 1;
+  const tier = getPremiumTier ? getPremiumTier() : null;
+  if (tier === 'diamond') mult = 3;
+  else if (tier === 'gold') mult = 2;
+  else if (tier === 'bronze') mult = 1.5;
+  if (S && S.xpBoost && Date.now() < S.xpBoost.expires) mult = Math.max(mult, S.xpBoost.mult);
+  const final = Math.round(amount * mult);
+  if (_gateOrigAddXp) _gateOrigAddXp(final, src);
+  else if (typeof addXp === 'function') addXp(final, src);
+  else { if(S) S.xp=(S.xp||0)+final; }
+}
+
+// Restore Purchases — check Stripe for active subs
+async function restorePurchases() {
+  if (!currentUser) { toast('Log in first!'); return; }
+  toast('🔄 Checking your purchases...', 'gold-toast');
+  // Call Apps Script to check stored purchase records
+  const res = await sheetsCall('checkPurchase', { email: currentUser.email }).catch(() => null);
+  if (res && res.ok && res.purchases && res.purchases.length > 0) {
+    res.purchases.forEach(p => {
+      const reward = PRODUCT_REWARDS[p.productId];
+      if (reward) applyReward(p.productId, reward);
+    });
+    toast('✅ Purchases restored!', 'green-toast');
+  } else {
+    toast('No purchases found. Buy something first!', 'gold-toast');
+  }
+  updatePremiumBadge();
+}
+
+// Show skip pass count in HUD
+function updateSkipCount() {
+  const skips = S.skipPasses || 0;
+  const hudEl = document.getElementById('hud-skip');
+  if (hudEl) hudEl.textContent = skips > 0 ? '⚡' + skips : '';
 }
 
 // Done
