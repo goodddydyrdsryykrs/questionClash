@@ -5019,80 +5019,9 @@ async function startAssignment(subject, grade, numQ){
 // pvp vars defined in pvp system
 
 
-// Old PvP system removed - 3D arena below
 
-// Middle PvP block removed
+function showDuel(){\n  resetDuel();\n  showScreen('duel');\n}\n\nfunction resetDuel(){\n  duelState = 'idle';\n  duelRoomCode = null;\n  duelMyScore = 0; duelOppScore = 0;\n  duelAnswered = false;\n  clearInterval(duelPollInterval);\n  showDuelSection('idle');\n  setBanner('');\n  document.getElementById('duel-my-score').textContent = '0';\n  document.getElementById('duel-opp-score').textContent = '0';\n}\n\nfunction showDuelSection(section){\n  ['idle','waiting','battle','result'].forEach(s=>{\n    const el = document.getElementById('duel-'+s);\n    if(el) el.style.display = s===section ? 'block' : 'none';\n  });\n}\n\nfunction setBanner(msg, color){\n  const el = document.getElementById('duel-status-banner');\n  if(!el) return;\n  if(!msg){ el.style.display='none'; return; }\n  el.textContent = msg;\n  el.style.borderColor = color||'rgba(255,100,0,.4)';\n  el.style.color = color ? color.replace('rgba(','').split(',')[0].replace('rgb(','')+'ff' : '#ff6400';\n  el.style.display = 'block';\n}\n\nasync function createDuelRoom(){\n  if(!currentUser){ toast('Log in first!'); return; }\n  const code = Math.random().toString(36).substring(2,7).toUpperCase();\n  duelRoomCode = code;\n  duelIsHost = true;\n  const res = await sheetsCall('pvpCreate', {\n    code, email: currentUser.email, fname: currentUser.fname\n  });\n  if(res.ok){\n    showDuelSection('waiting');\n    document.getElementById('duel-room-code-display').textContent = code;\n    setBanner('');\n    // Poll for opponent joining\n    duelPollInterval = setInterval(checkDuelOpponent, 2000);\n  } else {\n    toast(res.error || 'Could not create room.');\n  }\n}\n\nasync function joinDuelRoom(){\n  if(!currentUser){ toast('Log in first!'); return; }\n  const code = (document.getElementById('duel-code-input').value||'').trim().toUpperCase();\n  if(code.length < 4){ toast('Enter the full duel code!'); return; }\n  duelRoomCode = code;\n  duelIsHost = false;\n  const res = await sheetsCall('pvpJoin', {\n    code, email: currentUser.email, fname: currentUser.fname\n  });\n  if(res.ok){\n    duelOppName = res.oppName || 'Opponent';\n    document.getElementById('duel-opp-name-display').textContent = duelOppName;\n    startDuelBattle();\n  } else {\n    toast(res.error || 'Room not found! Check the code.');\n  }\n}\n\nasync function checkDuelOpponent(){\n  const res = await sheetsCall('pvpCheck', { code: duelRoomCode });\n  if(res.ok && res.opponent){\n    clearInterval(duelPollInterval);\n    duelOppName = res.opponent;\n    document.getElementById('duel-opp-name-display').textContent = duelOppName;\n    startDuelBattle();\n  }\n}\n\nfunction copyDuelCode(){\n  if(!duelRoomCode) return;\n  navigator.clipboard.writeText(duelRoomCode)\n    .then(()=>toast('\ud83d\udccb Code copied! Share with your friend','green-toast'))\n    .catch(()=>toast('Code: '+duelRoomCode+' \u2014 share manually','green-toast'));\n}\n\nfunction cancelDuel(){\n  clearInterval(duelPollInterval);\n  resetDuel();\n}\n\nfunction startDuelBattle(){\n  clearInterval(duelPollInterval);\n  duelState = 'battle';\n  duelMyScore = 0; duelOppScore = 0;\n  showDuelSection('battle');\n  // Set win target based on grade level\n  duelWinTarget = 5;\n  document.getElementById('duel-win-target').textContent =\n    'First to '+duelWinTarget+' correct answers wins!';\n  buildDuelPips();\n  loadDuelQuestion();\n  // Poll opponent score every 1.5s\n  duelPollInterval = setInterval(pollDuelOpponent, 1500);\n}\n\nfunction buildDuelPips(){\n  const row = document.getElementById('duel-pip-row');\n  if(!row) return;\n  row.innerHTML = '';\n  for(let i=0;i<duelWinTarget;i++){\n    const pip = document.createElement('div');\n    pip.id = 'pip-me-'+i;\n    pip.style.cssText = 'width:18px;height:18px;border-radius:50%;border:2px solid rgba(124,77,255,.5);background:rgba(255,255,255,.05);transition:all .2s';\n    row.appendChild(pip);\n  }\n  const vs = document.createElement('div');\n  vs.style.cssText = 'font-family:
 
-async function showPvp(){
-  pvpState='idle';
-  showScreen('pvp');
-  document.getElementById('pvp-matchmaking').style.display='flex';
-  document.getElementById('pvp-join-section').style.display='flex';
-  document.getElementById('pvp-waiting').style.display='none';
-  document.getElementById('pvp-countdown-overlay').style.display='none';
-  document.getElementById('pvp-battle-hud').style.display='none';
-  document.getElementById('pvp-round-over').style.display='none';
-  document.getElementById('pvp-match-over').style.display='none';
-  stopPvpArena();
-}
-
-async function cancelPvp(){ clearInterval(pvpPollInterval); clearInterval(pvpTimerInterval); showPvp(); }
-
-async function copyPvpCode(){
-  if(!pvpRoomCode) return;
-  navigator.clipboard.writeText(pvpRoomCode)
-    .then(()=>toast('📋 Copied! Share with your friend','green-toast'))
-    .catch(()=>toast('Code: '+pvpRoomCode));
-}
-
-async function createPvpRoom(){
-  if(!currentUser){ toast('Log in first!'); return; }
-  const code=Math.random().toString(36).substring(2,7).toUpperCase();
-  pvpRoomCode=code; pvpIsHost=true;
-  const res=await sheetsCall('pvpCreate',{code,email:currentUser.email,fname:currentUser.fname,role:'p1'});
-  if(res.ok){
-    document.getElementById('pvp-join-section').style.display='none';
-    document.getElementById('pvp-waiting').style.display='block';
-    document.getElementById('pvp-room-code').textContent=code;
-    pvpPollInterval=setInterval(checkPvpOpponent,1500);
-  } else toast(res.error||'Could not create room.');
-}
-
-async function joinPvpRoom(){
-  if(!currentUser){ toast('Log in first!'); return; }
-  const code=(document.getElementById('pvp-code-input').value||'').trim().toUpperCase();
-  if(code.length<4){ toast('Enter the room code!'); return; }
-  pvpRoomCode=code; pvpIsHost=false;
-  const res=await sheetsCall('pvpJoin',{code,email:currentUser.email,fname:currentUser.fname});
-  if(res.ok){ pvpOppNameVal=res.oppName||'Opponent'; startPvpCountdown(); }
-  else toast(res.error||'Room not found!');
-}
-
-async function checkPvpOpponent(){
-  const res=await sheetsCall('pvpCheck',{code:pvpRoomCode});
-  if(res.ok&&res.opponent){
-    clearInterval(pvpPollInterval);
-    pvpOppNameVal=res.opponent;
-    startPvpCountdown();
-  }
-}
-
-function startPvpCountdown(){
-  pvpState='countdown';
-  document.getElementById('pvp-join-section').style.display='none';
-  document.getElementById('pvp-waiting').style.display='none';
-  document.getElementById('pvp-countdown-overlay').style.display='block';
-  const greet=document.getElementById('pvp-opp-greeting');
-  if(greet) greet.textContent='vs '+pvpOppNameVal;
-  let count=3;
-  document.getElementById('pvp-countdown-num').textContent=count;
-  const iv=setInterval(()=>{
-    count--;
-    const el=document.getElementById('pvp-countdown-num');
-    if(el){ el.textContent=count>0?count:'FIGHT!'; el.style.color=count>0?'#f44336':'#ffb800'; }
-    if(count<=-1){ clearInterval(iv); document.getElementById('pvp-matchmaking').style.display='none'; startPvpArena(); }
-  },1000);
-}
 
 // ══════════════════════
 // BUILD ARENA
@@ -6483,4 +6412,1429 @@ function updateQDots() {
 // Done
 </script>
 </body>
-</html>
+</html
+// ════════════════════════════════════════════
+// DIRECT DUEL SYSTEM
+// ════════════════════════════════════════════
+function showDuel(){\n  resetDuel();\n  showScreen('duel');\n}\n\nfunction resetDuel(){\n  duelState = 'idle';\n  duelRoomCode = null;\n  duelMyScore = 0; duelOppScore = 0;\n  duelAnswered = false;\n  clearInterval(duelPollInterval);\n  showDuelSection('idle');\n  setBanner('');\n  document.getElementById('duel-my-score').textContent = '0';\n  document.getElementById('duel-opp-score').textContent = '0';\n}\n\nfunction showDuelSection(section){\n  ['idle','waiting','battle','result'].forEach(s=>{\n    const el = document.getElementById('duel-'+s);\n    if(el) el.style.display = s===section ? 'block' : 'none';\n  });\n}\n\nfunction setBanner(msg, color){\n  const el = document.getElementById('duel-status-banner');\n  if(!el) return;\n  if(!msg){ el.style.display='none'; return; }\n  el.textContent = msg;\n  el.style.borderColor = color||'rgba(255,100,0,.4)';\n  el.style.color = color ? color.replace('rgba(','').split(',')[0].replace('rgb(','')+'ff' : '#ff6400';\n  el.style.display = 'block';\n}\n\nasync function createDuelRoom(){\n  if(!currentUser){ toast('Log in first!'); return; }\n  const code = Math.random().toString(36).substring(2,7).toUpperCase();\n  duelRoomCode = code;\n  duelIsHost = true;\n  const res = await sheetsCall('pvpCreate', {\n    code, email: currentUser.email, fname: currentUser.fname\n  });\n  if(res.ok){\n    showDuelSection('waiting');\n    document.getElementById('duel-room-code-display').textContent = code;\n    setBanner('');\n    // Poll for opponent joining\n    duelPollInterval = setInterval(checkDuelOpponent, 2000);\n  } else {\n    toast(res.error || 'Could not create room.');\n  }\n}\n\nasync function joinDuelRoom(){\n  if(!currentUser){ toast('Log in first!'); return; }\n  const code = (document.getElementById('duel-code-input').value||'').trim().toUpperCase();\n  if(code.length < 4){ toast('Enter the full duel code!'); return; }\n  duelRoomCode = code;\n  duelIsHost = false;\n  const res = await sheetsCall('pvpJoin', {\n    code, email: currentUser.email, fname: currentUser.fname\n  });\n  if(res.ok){\n    duelOppName = res.oppName || 'Opponent';\n    document.getElementById('duel-opp-name-display').textContent = duelOppName;\n    startDuelBattle();\n  } else {\n    toast(res.error || 'Room not found! Check the code.');\n  }\n}\n\nasync function checkDuelOpponent(){\n  const res = await sheetsCall('pvpCheck', { code: duelRoomCode });\n  if(res.ok && res.opponent){\n    clearInterval(duelPollInterval);\n    duelOppName = res.opponent;\n    document.getElementById('duel-opp-name-display').textContent = duelOppName;\n    startDuelBattle();\n  }\n}\n\nfunction copyDuelCode(){\n  if(!duelRoomCode) return;\n  navigator.clipboard.writeText(duelRoomCode)\n    .then(()=>toast('\ud83d\udccb Code copied! Share with your friend','green-toast'))\n    .catch(()=>toast('Code: '+duelRoomCode+' \u2014 share manually','green-toast'));\n}\n\nfunction cancelDuel(){\n  clearInterval(duelPollInterval);\n  resetDuel();\n}\n\nfunction startDuelBattle(){\n  clearInterval(duelPollInterval);\n  duelState = 'battle';\n  duelMyScore = 0; duelOppScore = 0;\n  showDuelSection('battle');\n  // Set win target based on grade level\n  duelWinTarget = 5;\n  document.getElementById('duel-win-target').textContent =\n    'First to '+duelWinTarget+' correct answers wins!';\n  buildDuelPips();\n  loadDuelQuestion();\n  // Poll opponent score every 1.5s\n  duelPollInterval = setInterval(pollDuelOpponent, 1500);\n}\n\nfunction buildDuelPips(){\n  const row = document.getElementById('duel-pip-row');\n  if(!row) return;\n  row.innerHTML = '';\n  for(let i=0;i<duelWinTarget;i++){\n    const pip = document.createElement('div');\n    pip.id = 'pip-me-'+i;\n    pip.style.cssText = 'width:18px;height:18px;border-radius:50%;border:2px solid rgba(124,77,255,.5);background:rgba(255,255,255,.05);transition:all .2s';\n    row.appendChild(pip);\n  }\n  const vs = document.createElement('div');\n  vs.style.cssText = 'font-family:\"Fredoka One\",cursive;font-size:14px;color:rgba(255,255,255,.4);margin:0 8px';\n  vs.textContent = 'vs';\n  row.appendChild(vs);\n  for(let i=0;i<duelWinTarget;i++){\n    const pip = document.createElement('div');\n    pip.id = 'pip-opp-'+i;\n    pip.style.cssText = 'width:18px;height:18px;border-radius:50%;border:2px solid rgba(244,67,54,.5);background:rgba(255,255,255,.05);transition:all .2s';\n    row.appendChild(pip);\n  }\n}\n\nfunction updateDuelPips(){\n  for(let i=0;i<duelWinTarget;i++){\n    const me = document.getElementById('pip-me-'+i);\n    const opp = document.getElementById('pip-opp-'+i);\n    if(me) me.style.background = i<duelMyScore ? '#a78bfa' : 'rgba(255,255,255,.05)';\n    if(opp) opp.style.background = i<duelOppScore ? '#f44336' : 'rgba(255,255,255,.05)';\n  }\n}\n\nfunction loadDuelQuestion(){\n  duelAnswered = false;\n  const pool = getPool();\n  duelCurrentQ = pool[Math.floor(Math.random()*pool.length)];\n\n  const qText = document.getElementById('duel-question-text');\n  const answers = document.getElementById('duel-answers');\n  if(!qText||!answers||!duelCurrentQ) return;\n\n  qText.textContent = duelCurrentQ.q;\n  answers.innerHTML = '';\n  duelCurrentQ.opts.forEach((opt, i)=>{\n    const btn = document.createElement('button');\n    btn.style.cssText = 'font-family:\"Fredoka One\",cursive;font-size:16px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:14px;padding:12px 16px;color:#fff;cursor:pointer;text-align:left;transition:all .12s;width:100%';\n    btn.textContent = opt;\n    btn.onmouseover = ()=>{ if(!duelAnswered) btn.style.background='rgba(255,100,0,.2)'; };\n    btn.onmouseout = ()=>{ if(!duelAnswered) btn.style.background='rgba(255,255,255,.08)'; };\n    btn.onclick = ()=>answerDuel(i, btn);\n    answers.appendChild(btn);\n  });\n}\n\nasync function answerDuel(idx, btn){\n  if(duelAnswered || duelState!=='battle') return;\n  duelAnswered = true;\n  document.querySelectorAll('#duel-answers button').forEach(b=>b.disabled=true);\n  const correct = idx === duelCurrentQ.ans;\n\n  if(correct){\n    btn.style.background = 'rgba(76,175,80,.3)';\n    btn.style.borderColor = '#4caf50';\n    duelMyScore++;\n    document.getElementById('duel-my-score').textContent = duelMyScore;\n    particles('\u2b50');\n    await sheetsCall('pvpAnswer',{code:duelRoomCode,email:currentUser.email,correct:1});\n  } else {\n    btn.style.background = 'rgba(244,67,54,.2)';\n    btn.style.borderColor = '#f44336';\n    const answers = document.querySelectorAll('#duel-answers button');\n    if(answers[duelCurrentQ.ans]) answers[duelCurrentQ.ans].style.background='rgba(76,175,80,.3)';\n    await sheetsCall('pvpAnswer',{code:duelRoomCode,email:currentUser.email,correct:0});\n  }\n  updateDuelPips();\n  if(duelMyScore>=duelWinTarget){\n    endDuel(true);\n  } else {\n    setTimeout(loadDuelQuestion, 1200);\n  }\n}\n\nasync function pollDuelOpponent(){\n  if(duelState!=='battle') return;\n  const res = await sheetsCall('pvpPoll',{code:duelRoomCode,email:currentUser.email});\n  if(res.ok){\n    const prev = duelOppScore;\n    duelOppScore = res.oppScore||0;\n    if(duelOppScore>prev) particles('\ud83d\udca8'); // opponent got one\n    document.getElementById('duel-opp-score').textContent = duelOppScore;\n    updateDuelPips();\n    if(duelOppScore>=duelWinTarget) endDuel(false);\n  }\n}\n\nfunction endDuel(won){\n  if(duelState==='result') return;\n  duelState = 'result';\n  clearInterval(duelPollInterval);\n  const xpReward = won ? 300 : 75;\n  const silverReward = won ? 150 : 30;\n  const clashReward = won ? 25 : 5;\n  addXp(xpReward);\n  S.silver=(S.silver||0)+silverReward;\n  S.clash=(S.clash||0)+clashReward;\n  syncHud(); saveProgress();\n\n  showDuelSection('result');\n  const icon = document.getElementById('duel-result-icon');\n  const title = document.getElementById('duel-result-title');\n  const sub = document.getElementById('duel-result-sub');\n  if(won){\n    icon.textContent='\ud83c\udfc6';\n    title.textContent='You Win!';\n    title.style.color='#ffb800';\n    sub.textContent='+'+xpReward+' XP \u00b7 +'+silverReward+' Silver \u00b7 +'+clashReward+' Clash Cash';\n    particles('\ud83c\udfc6'); particles('\u2b50');\n  } else {\n    icon.textContent='\ud83d\udc80';\n    title.textContent=duelOppName+' Wins!';\n    title.style.color='#f44336';\n    sub.textContent='+'+xpReward+' XP for trying \u00b7 Better luck next time!';\n  }\n  // Final score\n  const scoreDiv = document.createElement('div');\n  scoreDiv.style.cssText='font-family:\"Fredoka One\",cursive;font-size:20px;color:rgba(255,255,255,.6);margin:-10px 0 16px';\n  scoreDiv.textContent=duelMyScore+' \u2014 '+duelOppScore;\n  const resultDiv = document.getElementById('duel-result');\n  const btns = resultDiv.querySelector('div[style*=\"flex\"]');\n  if(btns) resultDiv.insertBefore(scoreDiv, btns);\n}\nDUELEOF\necho \"Duel JS: $(wc -c < /tmp/duel_js.js) bytes\"",
+      "description": "Write complete duel system JS"
+    },
+    "message": "Write complete duel system JS",
+    "integration_name": null,
+    "integration_icon_url": null,
+    "icon_name": "commandLine",
+    "context": null,
+    "display_content": {
+      "type": "json_block",
+      "json_block": "{\"language\": \"bash\", \"code\": \"cat >> /tmp/duel_js.js << 'DUELEOF'
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+// DIRECT DUEL SYSTEM
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+var duelRoomCode = null;
+var duelMyScore = 0, duelOppScore = 0;
+var duelOppName = 'Opponent';
+var duelPollInterval = null;
+var duelAnswered = false;
+var duelCurrentQ = null;
+var duelWinTarget = 5;
+var duelIsHost = false;
+var duelState = 'idle'; // idle | waiting | battle | result
+
+function showDuel(){
+  resetDuel();
+  showScreen('duel');
+}
+
+function resetDuel(){
+  duelState = 'idle';
+  duelRoomCode = null;
+  duelMyScore = 0; duelOppScore = 0;
+  duelAnswered = false;
+  clearInterval(duelPollInterval);
+  showDuelSection('idle');
+  setBanner('');
+  document.getElementById('duel-my-score').textContent = '0';
+  document.getElementById('duel-opp-score').textContent = '0';
+}
+
+function showDuelSection(section){
+  ['idle','waiting','battle','result'].forEach(s=>{
+    const el = document.getElementById('duel-'+s);
+    if(el) el.style.display = s===section ? 'block' : 'none';
+  });
+}
+
+function setBanner(msg, color){
+  const el = document.getElementById('duel-status-banner');
+  if(!el) return;
+  if(!msg){ el.style.display='none'; return; }
+  el.textContent = msg;
+  el.style.borderColor = color||'rgba(255,100,0,.4)';
+  el.style.color = color ? color.replace('rgba(','').split(',')[0].replace('rgb(','')+'ff' : '#ff6400';
+  el.style.display = 'block';
+}
+
+async function createDuelRoom(){
+  if(!currentUser){ toast('Log in first!'); return; }
+  const code = Math.random().toString(36).substring(2,7).toUpperCase();
+  duelRoomCode = code;
+  duelIsHost = true;
+  const res = await sheetsCall('pvpCreate', {
+    code, email: currentUser.email, fname: currentUser.fname
+  });
+  if(res.ok){
+    showDuelSection('waiting');
+    document.getElementById('duel-room-code-display').textContent = code;
+    setBanner('');
+    // Poll for opponent joining
+    duelPollInterval = setInterval(checkDuelOpponent, 2000);
+  } else {
+    toast(res.error || 'Could not create room.');
+  }
+}
+
+async function joinDuelRoom(){
+  if(!currentUser){ toast('Log in first!'); return; }
+  const code = (document.getElementById('duel-code-input').value||'').trim().toUpperCase();
+  if(code.length < 4){ toast('Enter the full duel code!'); return; }
+  duelRoomCode = code;
+  duelIsHost = false;
+  const res = await sheetsCall('pvpJoin', {
+    code, email: currentUser.email, fname: currentUser.fname
+  });
+  if(res.ok){
+    duelOppName = res.oppName || 'Opponent';
+    document.getElementById('duel-opp-name-display').textContent = duelOppName;
+    startDuelBattle();
+  } else {
+    toast(res.error || 'Room not found! Check the code.');
+  }
+}
+
+async function checkDuelOpponent(){
+  const res = await sheetsCall('pvpCheck', { code: duelRoomCode });
+  if(res.ok && res.opponent){
+    clearInterval(duelPollInterval);
+    duelOppName = res.opponent;
+    document.getElementById('duel-opp-name-display').textContent = duelOppName;
+    startDuelBattle();
+  }
+}
+
+function copyDuelCode(){
+  if(!duelRoomCode) return;
+  navigator.clipboard.writeText(duelRoomCode)
+    .then(()=>toast('\\ud83d\\udccb Code copied! Share with your friend','green-toast'))
+    .catch(()=>toast('Code: '+duelRoomCode+' \\u2014 share manually','green-toast'));
+}
+
+function cancelDuel(){
+  clearInterval(duelPollInterval);
+  resetDuel();
+}
+
+function startDuelBattle(){
+  clearInterval(duelPollInterval);
+  duelState = 'battle';
+  duelMyScore = 0; duelOppScore = 0;
+  showDuelSection('battle');
+  // Set win target based on grade level
+  duelWinTarget = 5;
+  document.getElementById('duel-win-target').textContent =
+    'First to '+duelWinTarget+' correct answers wins!';
+  buildDuelPips();
+  loadDuelQuestion();
+  // Poll opponent score every 1.5s
+  duelPollInterval = setInterval(pollDuelOpponent, 1500);
+}
+
+function buildDuelPips(){
+  const row = document.getElementById('duel-pip-row');
+  if(!row) return;
+  row.innerHTML = '';
+  for(let i=0;i<duelWinTarget;i++){
+    const pip = document.createElement('div');
+    pip.id = 'pip-me-'+i;
+    pip.style.cssText = 'width:18px;height:18px;border-radius:50%;border:2px solid rgba(124,77,255,.5);background:rgba(255,255,255,.05);transition:all .2s';
+    row.appendChild(pip);
+  }
+  const vs = document.createElement('div');
+  vs.style.cssText = 'font-family:\"Fredoka One\",cursive;font-size:14px;color:rgba(255,255,255,.4);margin:0 8px';
+  vs.textContent = 'vs';
+  row.appendChild(vs);
+  for(let i=0;i<duelWinTarget;i++){
+    const pip = document.createElement('div');
+    pip.id = 'pip-opp-'+i;
+    pip.style.cssText = 'width:18px;height:18px;border-radius:50%;border:2px solid rgba(244,67,54,.5);background:rgba(255,255,255,.05);transition:all .2s';
+    row.appendChild(pip);
+  }
+}
+
+function updateDuelPips(){
+  for(let i=0;i<duelWinTarget;i++){
+    const me = document.getElementById('pip-me-'+i);
+    const opp = document.getElementById('pip-opp-'+i);
+    if(me) me.style.background = i<duelMyScore ? '#a78bfa' : 'rgba(255,255,255,.05)';
+    if(opp) opp.style.background = i<duelOppScore ? '#f44336' : 'rgba(255,255,255,.05)';
+  }
+}
+
+function loadDuelQuestion(){
+  duelAnswered = false;
+  const pool = getPool();
+  duelCurrentQ = pool[Math.floor(Math.random()*pool.length)];
+
+  const qText = document.getElementById('duel-question-text');
+  const answers = document.getElementById('duel-answers');
+  if(!qText||!answers||!duelCurrentQ) return;
+
+  qText.textContent = duelCurrentQ.q;
+  answers.innerHTML = '';
+  duelCurrentQ.opts.forEach((opt, i)=>{
+    const btn = document.createElement('button');
+    btn.style.cssText = 'font-family:\"Fredoka One\",cursive;font-size:16px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:14px;padding:12px 16px;color:#fff;cursor:pointer;text-align:left;transition:all .12s;width:100%';
+    btn.textContent = opt;
+    btn.onmouseover = ()=>{ if(!duelAnswered) btn.style.background='rgba(255,100,0,.2)'; };
+    btn.onmouseout = ()=>{ if(!duelAnswered) btn.style.background='rgba(255,255,255,.08)'; };
+    btn.onclick = ()=>answerDuel(i, btn);
+    answers.appendChild(btn);
+  });
+}
+
+async function answerDuel(idx, btn){
+  if(duelAnswered || duelState!=='battle') return;
+  duelAnswered = true;
+  document.querySelectorAll('#duel-answers button').forEach(b=>b.disabled=true);
+  const correct = idx === duelCurrentQ.ans;
+
+  if(correct){
+    btn.style.background = 'rgba(76,175,80,.3)';
+    btn.style.borderColor = '#4caf50';
+    duelMyScore++;
+    document.getElementById('duel-my-score').textContent = duelMyScore;
+    particles('\\u2b50');
+    await sheetsCall('pvpAnswer',{code:duelRoomCode,email:currentUser.email,correct:1});
+  } else {
+    btn.style.background = 'rgba(244,67,54,.2)';
+    btn.style.borderColor = '#f44336';
+    const answers = document.querySelectorAll('#duel-answers button');
+    if(answers[duelCurrentQ.ans]) answers[duelCurrentQ.ans].style.background='rgba(76,175,80,.3)';
+    await sheetsCall('pvpAnswer',{code:duelRoomCode,email:currentUser.email,correct:0});
+  }
+  updateDuelPips();
+  if(duelMyScore>=duelWinTarget){
+    endDuel(true);
+  } else {
+    setTimeout(loadDuelQuestion, 1200);
+  }
+}
+
+async function pollDuelOpponent(){
+  if(duelState!=='battle') return;
+  const res = await sheetsCall('pvpPoll',{code:duelRoomCode,email:currentUser.email});
+  if(res.ok){
+    const prev = duelOppScore;
+    duelOppScore = res.oppScore||0;
+    if(duelOppScore>prev) particles('\\ud83d\\udca8'); // opponent got one
+    document.getElementById('duel-opp-score').textContent = duelOppScore;
+    updateDuelPips();
+    if(duelOppScore>=duelWinTarget) endDuel(false);
+  }
+}
+
+function endDuel(won){
+  if(duelState==='result') return;
+  duelState = 'result';
+  clearInterval(duelPollInterval);
+  const xpReward = won ? 300 : 75;
+  const silverReward = won ? 150 : 30;
+  const clashReward = won ? 25 : 5;
+  addXp(xpReward);
+  S.silver=(S.silver||0)+silverReward;
+  S.clash=(S.clash||0)+clashReward;
+  syncHud(); saveProgress();
+
+  showDuelSection('result');
+  const icon = document.getElementById('duel-result-icon');
+  const title = document.getElementById('duel-result-title');
+  const sub = document.getElementById('duel-result-sub');
+  if(won){
+    icon.textContent='\\ud83c\\udfc6';
+    title.textContent='You Win!';
+    title.style.color='#ffb800';
+    sub.textContent='+'+xpReward+' XP \\u00b7 +'+silverReward+' Silver \\u00b7 +'+clashReward+' Clash Cash';
+    particles('\\ud83c\\udfc6'); particles('\\u2b50');
+  } else {
+    icon.textContent='\\ud83d\\udc80';
+    title.textContent=duelOppName+' Wins!';
+    title.style.color='#f44336';
+    sub.textContent='+'+xpReward+' XP for trying \\u00b7 Better luck next time!';
+  }
+  // Final score
+  const scoreDiv = document.createElement('div');
+  scoreDiv.style.cssText='font-family:\"Fredoka One\",cursive;font-size:20px;color:rgba(255,255,255,.6);margin:-10px 0 16px';
+  scoreDiv.textContent=duelMyScore+' \\u2014 '+duelOppScore;
+  const resultDiv = document.getElementById('duel-result');
+  const btns = resultDiv.querySelector('div[style*=\"flex\"]');
+  if(btns) resultDiv.insertBefore(scoreDiv, btns);
+}
+DUELEOF
+echo \"Duel JS: $(wc -c < /tmp/duel_js.js) bytes\"\"}"
+    },
+    "approval_options": null,
+    "approval_key": null,
+    "approval_key_legacy": null,
+    "is_mcp_app": null,
+    "mcp_server_url": null
+  },
+
+// ════════════════════════════════════════════
+// LEADERBOARD
+// ════════════════════════════════════════════
+0\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nvar lbCurrentTab = 'xp';\nvar lbData = [];\n\nfunction openLeaderboard(){\n  showScreen('leaderboard');\n  loadLeaderboard();\n}\n\nasync function loadLeaderboard(){\n  const loading = document.getElementById('lb-loading');\n  const table = document.getElementById('lb-table');\n  const yourRank = document.getElementById('lb-your-rank');\n  if(loading) loading.style.display = 'block';\n  if(table) table.style.display = 'none';\n  if(yourRank) yourRank.style.display = 'none';\n\n  try {\n    const res = await sheetsCall('leaderboard', {});\n    if(res.ok && res.players){\n      lbData = res.players;\n      renderLeaderboard(lbCurrentTab);\n    } else {\n      if(loading) loading.textContent = 'Could not load leaderboard.';\n    }\n  } catch(e) {\n    if(loading) loading.textContent = 'Could not load leaderboard.';\n  }\n}\n\nfunction switchLbTab(tab){\n  lbCurrentTab = tab;\n  document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));\n  const el = document.getElementById('tab-'+tab);\n  if(el) el.classList.add('active');\n  renderLeaderboard(tab);\n}\n\nfunction renderLeaderboard(tab){\n  const loading = document.getElementById('lb-loading');\n  const table = document.getElementById('lb-table');\n  const yourRank = document.getElementById('lb-your-rank');\n  if(!table) return;\n\n  // Sort players by selected tab\n  const sorted = [...lbData].sort((a,b) => {\n    if(tab === 'xp') return (b.xp||0) - (a.xp||0);\n    if(tab === 'silver') return (b.silver||0) - (a.silver||0);\n    if(tab === 'wave') return (b.wave||0) - (a.wave||0);\n    return 0;\n  });\n\n  const medals = ['\ud83e\udd47','\ud83e\udd48','\ud83e\udd49'];\n  const scoreLabels = {xp:'\u2b50 XP', silver:'\ud83e\ude99 Silver', wave:'\u2694\ufe0f Wave'};\n\n  table.innerHTML = '';\n  const top10 = sorted.slice(0, 10);\n\n  top10.forEach((p, i) => {\n    const isYou = currentUser && p.email === currentUser.email;\n    const div = document.createElement('div');\n    div.className = 'lb-row' + (i===0?' top-1':i===1?' top-2':i===2?' top-3':'') + (isYou?' is-you':'');\n\n    const score = tab==='xp'?(p.xp||0):tab==='silver'?(p.silver||0):(p.wave||0);\n    const rankDisplay = medals[i] || ('#'+(i+1));\n\n    div.innerHTML =\n      '<div class=\"lb-rank\">'+rankDisplay+'</div>'\n      +'<div class=\"lb-name\">'+(p.fname||'Player')+(p.lname?' '+p.lname[0]+'.':'')+(isYou?' <span style=\"color:#a78bfa\">(you)</span>':'')+'</div>'\n      +'<div class=\"lb-level\">Lv.'+(p.level||1)+'</div>'\n      +'<div class=\"lb-score\">'+score.toLocaleString()+' '+scoreLabels[tab]+'</div>';\n    table.appendChild(div);\n  });\n\n  if(top10.length === 0){\n    table.innerHTML = '<div style=\"text-align:center;color:rgba(255,255,255,.4);font-family:'Fredoka One',cursive;padding:20px\">No players yet \u2014 be the first!</div>';\n  }\n\n  // Find your rank\n  if(currentUser){\n    const yourIdx = sorted.findIndex(p => p.email === currentUser.email);\n    if(yourIdx >= 10 && yourRank){\n      const yourScore = tab==='xp'?(sorted[yourIdx].xp||0):tab==='silver'?(sorted[yourIdx].silver||0):(sorted[yourIdx].wave||0);\n      yourRank.textContent = 'Your rank: #'+(yourIdx+1)+' \u2014 '+yourScore.toLocaleString()+' '+scoreLabels[tab];\n      yourRank.style.display = 'block';\n    }\n  }\n\n  if(loading) loading.style.display = 'none';\n  if(table) table.style.display = 'block';\n}\n\n// Show leaderboard after wave complete\nfunction showLeaderboardAfterWave(){\n  setTimeout(()=>{\n    const btn = document.createElement('button');\n    btn.style.cssText = 'font-family:'Fredoka One',cursive;font-size:15px;background:rgba(255,184,0,.2);border:2px solid rgba(255,184,0,.4);border-radius:20px;padding:10px 22px;color:#ffb800;cursor:pointer;margin-top:8px';\n    btn.textContent = '\ud83c\udfc6 View Leaderboard';\n    btn.onclick = () => openLeaderboard();\n    const box = document.querySelector('.wave-done-box');\n    if(box) box.appendChild(btn);\n  }, 500);\n}\n\n'''\n\n# Insert before closing </script>\nmarker = '// Done
+</script>'\nhtml = html.replace(marker, lb_js + '
+// Done
+</script>', 1)\nprint(\"Leaderboard JS added:\", 'function openLeaderboard' in html)\n\nwith open('/mnt/user-data/outputs/question_clash.html', 'w') as f:\n    f.write(html)\nprint(f\"File: {len(html)} chars\")\nEOF",
+      "description": "Add leaderboard JS and title button"
+    },
+    "message": "Add leaderboard JS and title button",
+    "integration_name": null,
+    "integration_icon_url": null,
+    "icon_name": "commandLine",
+    "context": null,
+    "display_content": {
+      "type": "json_block",
+      "json_block": "{\"language\": \"bash\", \"code\": \"python3 - << 'EOF'
+with open('/mnt/user-data/outputs/question_clash.html') as f:
+    html = f.read()
+
+# Add leaderboard button to title screen
+old_title_btn = '''    <button onclick=\"showInstructions()\" style=\"font-family:'Fredoka One',cursive;font-size:14px;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);border-radius:20px;padding:8px 20px;color:rgba(255,255,255,.7);cursor:pointer\">\\ud83d\\udcd6 How to Play</button>'''
+
+new_title_btn = '''    <button onclick=\"showInstructions()\" style=\"font-family:'Fredoka One',cursive;font-size:14px;background:rgba(255,255,255,.1);border:2px solid rgba(255,255,255,.2);border-radius:20px;padding:8px 20px;color:rgba(255,255,255,.7);cursor:pointer\">\\ud83d\\udcd6 How to Play</button>
+    <button onclick=\"openLeaderboard()\" style=\"font-family:'Fredoka One',cursive;font-size:14px;background:rgba(255,184,0,.2);border:2px solid rgba(255,184,0,.4);border-radius:20px;padding:8px 20px;color:#ffb800;cursor:pointer\">\\ud83c\\udfc6 Leaderboard</button>'''
+
+html = html.replace(old_title_btn, new_title_btn, 1)
+print(\"Leaderboard button on title:\", '\\ud83c\\udfc6 Leaderboard' in html)
+
+# Add leaderboard JS before the closing </script>
+lb_js = '''
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+// LEADERBOARD SYSTEM
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+var lbCurrentTab = 'xp';
+var lbData = [];
+
+function openLeaderboard(){
+  showScreen('leaderboard');
+  loadLeaderboard();
+}
+
+async function loadLeaderboard(){
+  const loading = document.getElementById('lb-loading');
+  const table = document.getElementById('lb-table');
+  const yourRank = document.getElementById('lb-your-rank');
+  if(loading) loading.style.display = 'block';
+  if(table) table.style.display = 'none';
+  if(yourRank) yourRank.style.display = 'none';
+
+  try {
+    const res = await sheetsCall('leaderboard', {});
+    if(res.ok && res.players){
+      lbData = res.players;
+      renderLeaderboard(lbCurrentTab);
+    } else {
+      if(loading) loading.textContent = 'Could not load leaderboard.';
+    }
+  } catch(e) {
+    if(loading) loading.textContent = 'Could not load leaderboard.';
+  }
+}
+
+function switchLbTab(tab){
+  lbCurrentTab = tab;
+  document.querySelectorAll('.lb-tab').forEach(t => t.classList.remove('active'));
+  const el = document.getElementById('tab-'+tab);
+  if(el) el.classList.add('active');
+  renderLeaderboard(tab);
+}
+
+function renderLeaderboard(tab){
+  const loading = document.getElementById('lb-loading');
+  const table = document.getElementById('lb-table');
+  const yourRank = document.getElementById('lb-your-rank');
+  if(!table) return;
+
+  // Sort players by selected tab
+  const sorted = [...lbData].sort((a,b) => {
+    if(tab === 'xp') return (b.xp||0) - (a.xp||0);
+    if(tab === 'silver') return (b.silver||0) - (a.silver||0);
+    if(tab === 'wave') return (b.wave||0) - (a.wave||0);
+    return 0;
+  });
+
+  const medals = ['\\ud83e\\udd47','\\ud83e\\udd48','\\ud83e\\udd49'];
+  const scoreLabels = {xp:'\\u2b50 XP', silver:'\\ud83e\\ude99 Silver', wave:'\\u2694\\ufe0f Wave'};
+
+  table.innerHTML = '';
+  const top10 = sorted.slice(0, 10);
+
+  top10.forEach((p, i) => {
+    const isYou = currentUser && p.email === currentUser.email;
+    const div = document.createElement('div');
+    div.className = 'lb-row' + (i===0?' top-1':i===1?' top-2':i===2?' top-3':'') + (isYou?' is-you':'');
+
+    const score = tab==='xp'?(p.xp||0):tab==='silver'?(p.silver||0):(p.wave||0);
+    const rankDisplay = medals[i] || ('#'+(i+1));
+
+    div.innerHTML =
+      '<div class=\"lb-rank\">'+rankDisplay+'</div>'
+      +'<div class=\"lb-name\">'+(p.fname||'Player')+(p.lname?' '+p.lname[0]+'.':'')+(isYou?' <span style=\"color:#a78bfa\">(you)</span>':'')+'</div>'
+      +'<div class=\"lb-level\">Lv.'+(p.level||1)+'</div>'
+      +'<div class=\"lb-score\">'+score.toLocaleString()+' '+scoreLabels[tab]+'</div>';
+    table.appendChild(div);
+  });
+
+  if(top10.length === 0){
+    table.innerHTML = '<div style=\"text-align:center;color:rgba(255,255,255,.4);font-family:\\'Fredoka One\\',cursive;padding:20px\">No players yet \\u2014 be the first!</div>';
+  }
+
+  // Find your rank
+  if(currentUser){
+    const yourIdx = sorted.findIndex(p => p.email === currentUser.email);
+    if(yourIdx >= 10 && yourRank){
+      const yourScore = tab==='xp'?(sorted[yourIdx].xp||0):tab==='silver'?(sorted[yourIdx].silver||0):(sorted[yourIdx].wave||0);
+      yourRank.textContent = 'Your rank: #'+(yourIdx+1)+' \\u2014 '+yourScore.toLocaleString()+' '+scoreLabels[tab];
+      yourRank.style.display = 'block';
+    }
+  }
+
+  if(loading) loading.style.display = 'none';
+  if(table) table.style.display = 'block';
+}
+
+// Show leaderboard after wave complete
+function showLeaderboardAfterWave(){
+  setTimeout(()=>{
+    const btn = document.createElement('button');
+    btn.style.cssText = 'font-family:\\'Fredoka One\\',cursive;font-size:15px;background:rgba(255,184,0,.2);border:2px solid rgba(255,184,0,.4);border-radius:20px;padding:10px 22px;color:#ffb800;cursor:pointer;margin-top:8px';
+    btn.textContent = '\\ud83c\\udfc6 View Leaderboard';
+    btn.onclick = () => openLeaderboard();
+    const box = document.querySelector('.wave-done-box');
+    if(box) box.appendChild(btn);
+  }, 500);
+}
+
+'''
+
+# Insert before closing </script>
+marker = '// Done\\
+</script>'
+html = html.replace(marker, lb_js + '\\
+// Done\\
+</script>', 1)
+print(\"Leaderboard JS added:\", 'function openLeaderboard' in html)
+
+with open('/mnt/user-data/outputs/question_clash.html', 'w') as f:
+    f.write(html)
+print(f\"File: {len(html)} chars\")
+EOF\"}"
+    },
+    "approval_options": null,
+    "approval_key": null,
+    "approval_key_legacy": null,
+    "is_mcp_app": null,
+    "mcp_server_url": null
+  },
+
+// ════════════════════════════════════════════
+// TEACHER DASHBOARD
+// ════════════════════════════════════════════
+N.parse(saved);\n      // Only auto-open teacher dash if we came from a teacher session\n      // (don't interfere with student auto-login)\n    }catch(e){}\n  }\n})();\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n// TEACHER DASHBOARD\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nvar tdStudentsData = [];\nvar tdCurrentClassCode = '';\nvar tdAssignments = [];\n\nfunction openTeacherDashboard(){\n  showScreen('teacher-dash');\n  const nameEl = document.getElementById('td-teacher-name');\n  if(nameEl && currentTeacher) nameEl.textContent = currentTeacher.fname + ' ' + (currentTeacher.lname||'');\n  tdShowTab('overview');\n  tdLoadAll();\n}\n\nasync function tdLoadAll(){\n  await tdLoadClass();\n  tdLoadStats();\n}\n\nasync function tdLoadClass(){\n  if(!currentTeacher) return;\n  const res = await sheetsCall('getTeacherClass', { email: currentTeacher.email });\n  if(res.ok && res.classCode){\n    tdCurrentClassCode = res.classCode;\n    const el = document.getElementById('td-class-code-display');\n    if(el) el.textContent = res.classCode;\n    // Load students\n    const sRes = await sheetsCall('getClassStudents', { classCode: res.classCode });\n    if(sRes.ok) tdStudentsData = sRes.students || [];\n    // Load assignments\n    const aRes = await sheetsCall('getAssignments', { classCode: res.classCode });\n    if(aRes.ok) tdAssignments = aRes.assignments || [];\n  } else {\n    const el = document.getElementById('td-class-code-display');\n    if(el) el.textContent = 'No class';\n  }\n}\n\nfunction tdLoadStats(){\n  const grid = document.getElementById('td-stats-grid');\n  if(!grid) return;\n  const totalStudents = tdStudentsData.length;\n  const avgXp = totalStudents ? Math.round(tdStudentsData.reduce((s,p)=>s+(p.xp||0),0)/totalStudents) : 0;\n  const totalWaves = tdStudentsData.reduce((s,p)=>s+(p.wave||0),0);\n  const activeToday = tdStudentsData.filter(p=>p.lastLogin&&new Date()-new Date(p.lastLogin)<86400000).length;\n  const stats = [\n    {icon:'\ud83d\udc65',num:totalStudents,label:'Students'},\n    {icon:'\u2b50',num:avgXp.toLocaleString(),label:'Avg XP'},\n    {icon:'\u2694\ufe0f',num:totalWaves,label:'Total Waves'},\n    {icon:'\ud83d\udfe2',num:activeToday,label:'Active Today'},\n    {icon:'\ud83d\udccb',num:tdAssignments.length,label:'Assignments'},\n    {icon:'\ud83c\udf93',num:tdCurrentClassCode||'\u2014',label:'Class Code'},\n  ];\n  grid.innerHTML = stats.map(s=>`\n    <div class=\"td-stat-card\">\n      <div style=\"font-size:28px\">${s.icon}</div>\n      <div class=\"td-stat-num\">${s.num}</div>\n      <div class=\"td-stat-label\">${s.label}</div>\n    </div>`).join('');\n}\n\nfunction tdShowTab(tab){\n  document.querySelectorAll('.td-tab').forEach(t=>t.style.display='none');\n  document.querySelectorAll('.td-nav-btn').forEach(b=>b.classList.remove('active'));\n  const tabEl = document.getElementById('tab-'+tab);\n  const navEl = document.getElementById('tdnav-'+tab);\n  if(tabEl) tabEl.style.display='block';\n  if(navEl) navEl.classList.add('active');\n  // Load tab-specific content\n  if(tab==='students') tdRenderStudents();\n  if(tab==='assignments') tdRenderAssignments();\n  if(tab==='battle') tdRenderBattles();\n  if(tab==='reports') tdRenderReports();\n  if(tab==='classes') tdRenderClasses();\n}\n\nfunction tdRenderStudents(filter='', sortBy='name'){\n  const list = document.getElementById('td-students-list');\n  if(!list) return;\n  let students = [...tdStudentsData];\n  if(filter) students = students.filter(s=>(s.fname+' '+(s.lname||'')).toLowerCase().includes(filter.toLowerCase()));\n  students.sort((a,b)=>{\n    if(sortBy==='xp') return (b.xp||0)-(a.xp||0);\n    if(sortBy==='wave') return (b.wave||0)-(a.wave||0);\n    return (a.fname||'').localeCompare(b.fname||'');\n  });\n  if(students.length===0){\n    list.innerHTML='<div style=\"font-size:14px;color:rgba(255,255,255,.4);padding:20px;text-align:center\">No students yet \u2014 share your class code!</div>';\n    return;\n  }\n  list.innerHTML = students.map((s,i)=>`\n    <div class=\"td-student-row\">\n      <div style=\"font-family:'Fredoka One',cursive;font-size:18px;color:#ffb800;width:30px\">${i+1}</div>\n      <div style=\"font-size:24px\">${['\ud83e\udd47','\ud83e\udd48','\ud83e\udd49'][i]||'\ud83d\udc64'}</div>\n      <div class=\"td-student-name\">${s.fname||'?'} ${s.lname||''}</div>\n      <div class=\"td-student-stat\">Lv.${s.level||1}</div>\n      <div class=\"td-student-stat\">\u2b50 ${(s.xp||0).toLocaleString()} XP</div>\n      <div class=\"td-student-stat\">\u2694\ufe0f ${s.wave||0} waves</div>\n      <div class=\"td-student-stat\">\u26cf\ufe0f ${s.blocks||0} blocks</div>\n      <div class=\"td-student-stat\" style=\"color:${s.lastLogin&&new Date()-new Date(s.lastLogin)<86400000?'#43c47a':'rgba(255,255,255,.3)'}\">\n        ${s.lastLogin&&new Date()-new Date(s.lastLogin)<86400000?'\ud83d\udfe2 Today':'\u26ab Inactive'}\n      </div>\n    </div>`).join('');\n}\n\nfunction tdFilterStudents(){\n  const filter = (document.getElementById('td-search-student')||{}).value||'';\n  const sort = (document.getElementById('td-sort-student')||{}).value||'name';\n  tdRenderStudents(filter, sort);\n}\n\nfunction tdRenderAssignments(){\n  const list = document.getElementById('td-assignments-list');\n  if(!list) return;\n  if(tdAssignments.length===0){\n    list.innerHTML='<div style=\"font-size:14px;color:rgba(255,255,255,.4);padding:20px;text-align:center\">No assignments yet \u2014 create one above!</div>';\n    return;\n  }\n  list.innerHTML = tdAssignments.map((a,i)=>`\n    <div class=\"td-assign-card\">\n      <div style=\"display:flex;align-items:center;gap:10px;margin-bottom:6px\">\n        <span style=\"font-size:20px\">\ud83d\udccb</span>\n        <span style=\"font-family:'Fredoka One',cursive;font-size:16px;color:#fff;flex:1\">${a.title||'Untitled'}</span>\n        <span style=\"font-family:'Fredoka One',cursive;font-size:12px;background:rgba(124,77,255,.3);border-radius:8px;padding:2px 8px;color:#a78bfa\">${a.subject||'General'}</span>\n        <button onclick=\"tdDeleteAssignment(${i})\" style=\"background:rgba(244,67,54,.2);border:none;border-radius:8px;padding:3px 10px;color:#ff6b6b;cursor:pointer;font-size:12px\">Delete</button>\n      </div>\n      <div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Grade ${a.grade||'?'} \u00b7 ${a.questions||0} questions \u00b7 Due: ${a.due||'No deadline'} ${a.notes?'\u00b7 '+a.notes:''}</div>\n    </div>`).join('');\n}\n\nasync function tdCreateAssignment(){\n  const title = (document.getElementById('td-assign-title')||{}).value.trim();\n  const subject = (document.getElementById('td-assign-subject')||{}).value;\n  const grade = (document.getElementById('td-assign-grade')||{}).value;\n  const questions = parseInt((document.getElementById('td-assign-q')||{}).value)||10;\n  const due = (document.getElementById('td-assign-due')||{}).value;\n  const notes = (document.getElementById('td-assign-notes')||{}).value.trim();\n  if(!title){ toast('Enter an assignment title!'); return; }\n  if(!tdCurrentClassCode){ toast('Create a class first!'); return; }\n  const assignment = JSON.stringify({title,subject,grade,questions,due,notes,createdAt:new Date().toISOString()});\n  const res = await sheetsCall('createAssignment', {classCode:tdCurrentClassCode,assignment,email:currentTeacher.email});\n  if(res.ok){\n    toast('\ud83d\udccb Assignment sent to class!','green-toast');\n    tdAssignments.push({title,subject,grade,questions,due,notes});\n    tdRenderAssignments();\n    if(document.getElementById('td-assign-title')) document.getElementById('td-assign-title').value='';\n  } else toast('Error: '+(res.error||'Could not create'));\n}\n\nasync function tdDeleteAssignment(idx){\n  tdAssignments.splice(idx,1);\n  const res = await sheetsCall('saveAssignments',{classCode:tdCurrentClassCode,assignments:JSON.stringify(tdAssignments),email:currentTeacher.email});\n  tdRenderAssignments();\n  toast('Assignment deleted');\n}\n\nfunction tdRenderClasses(){\n  const list = document.getElementById('td-classes-list');\n  if(!list) return;\n  list.innerHTML = `\n    <div style=\"background:rgba(255,255,255,.05);border:2px solid rgba(67,196,122,.3);border-radius:18px;padding:16px\">\n      <div style=\"display:flex;align-items:center;gap:12px;margin-bottom:12px\">\n        <div style=\"font-size:32px\">\ud83c\udfeb</div>\n        <div>\n          <div style=\"font-family:'Fredoka One',cursive;font-size:18px;color:#fff\">Class ${tdCurrentClassCode||'(no class)'}</div>\n          <div style=\"font-size:13px;color:rgba(255,255,255,.5)\">${tdStudentsData.length} students enrolled</div>\n        </div>\n        <div style=\"margin-left:auto;font-family:'Fredoka One',cursive;font-size:28px;color:#ffb800\">${tdCurrentClassCode||'\u2014'}</div>\n      </div>\n      <div style=\"display:flex;gap:10px;flex-wrap:wrap\">\n        <button onclick=\"copyClassCode()\" style=\"font-family:'Fredoka One',cursive;font-size:13px;background:rgba(255,184,0,.2);border:2px solid rgba(255,184,0,.3);border-radius:12px;padding:7px 16px;color:#ffb800;cursor:pointer\">\ud83d\udccb Copy Code</button>\n        <button onclick=\"createNewClass()\" style=\"font-family:'Fredoka One',cursive;font-size:13px;background:rgba(67,196,122,.2);border:2px solid rgba(67,196,122,.3);border-radius:12px;padding:7px 16px;color:#43c47a;cursor:pointer\">\u2795 New Class</button>\n      </div>\n    </div>`;\n}\n\nfunction tdRenderBattles(){\n  const list = document.getElementById('td-battles-list');\n  if(!list) return;\n  list.innerHTML='<div style=\"font-size:14px;color:rgba(255,255,255,.4);padding:20px;text-align:center\">No battles yet \u2014 challenge another class!</div>';\n}\n\nfunction tdRenderReports(){\n  const grid = document.getElementById('td-reports-grid');\n  if(!grid) return;\n  const avgXp = tdStudentsData.length ? Math.round(tdStudentsData.reduce((s,p)=>s+(p.xp||0),0)/tdStudentsData.length) : 0;\n  const topStudent = [...tdStudentsData].sort((a,b)=>(b.xp||0)-(a.xp||0))[0];\n  const mostActive = [...tdStudentsData].sort((a,b)=>(b.wave||0)-(a.wave||0))[0];\n  const totalBlocks = tdStudentsData.reduce((s,p)=>s+(p.blocks||0),0);\n  grid.innerHTML = `\n    <div style=\"background:rgba(255,184,0,.08);border:2px solid rgba(255,184,0,.2);border-radius:18px;padding:16px;grid-column:span 2\">\n      <div style=\"font-family:'Fredoka One',cursive;font-size:16px;color:#ffb800;margin-bottom:10px\">\ud83d\udcca Class Summary</div>\n      <div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:10px\">\n        <div style=\"text-align:center\"><div style=\"font-size:28px;font-family:'Fredoka One',cursive;color:#ffb800\">${avgXp.toLocaleString()}</div><div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Average XP</div></div>\n        <div style=\"text-align:center\"><div style=\"font-size:28px;font-family:'Fredoka One',cursive;color:#43c47a\">${tdStudentsData.reduce((s,p)=>s+(p.wave||0),0)}</div><div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Total Waves</div></div>\n        <div style=\"text-align:center\"><div style=\"font-size:28px;font-family:'Fredoka One',cursive;color:#00bcd4\">${totalBlocks.toLocaleString()}</div><div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Blocks Mined</div></div>\n      </div>\n    </div>\n    ${topStudent?`<div style=\"background:rgba(255,184,0,.08);border:2px solid rgba(255,184,0,.2);border-radius:18px;padding:16px\">\n      <div style=\"font-family:'Fredoka One',cursive;font-size:14px;color:#ffb800;margin-bottom:8px\">\ud83e\udd47 Top Student</div>\n      <div style=\"font-family:'Fredoka One',cursive;font-size:20px;color:#fff\">${topStudent.fname} ${topStudent.lname||''}</div>\n      <div style=\"font-size:13px;color:rgba(255,255,255,.5)\">\u2b50 ${(topStudent.xp||0).toLocaleString()} XP</div>\n    </div>`:''}\n    ${mostActive?`<div style=\"background:rgba(67,196,122,.08);border:2px solid rgba(67,196,122,.2);border-radius:18px;padding:16px\">\n      <div style=\"font-family:'Fredoka One',cursive;font-size:14px;color:#43c47a;margin-bottom:8px\">\u2694\ufe0f Most Active</div>\n      <div style=\"font-family:'Fredoka One',cursive;font-size:20px;color:#fff\">${mostActive.fname} ${mostActive.lname||''}</div>\n      <div style=\"font-size:13px;color:rgba(255,255,255,.5)\">\u2694\ufe0f ${mostActive.wave||0} waves completed</div>\n    </div>`:''}`;\n}\n\nasync function tdCreateClassBattle(){\n  const opponent = (document.getElementById('td-battle-opponent')||{}).value.trim().toUpperCase();\n  const subject = (document.getElementById('td-battle-subject')||{}).value;\n  const rounds = (document.getElementById('td-battle-rounds')||{}).value;\n  if(!opponent){ toast('Enter the opponent class code!'); return; }\n  if(!tdCurrentClassCode){ toast('Create a class first!'); return; }\n  toast('\u2694\ufe0f Battle challenge sent to class '+opponent+'!','gold-toast');\n  // TODO: implement with real-time backend\n}\n\nfunction copyClassCode(){\n  if(!tdCurrentClassCode){ toast('No class code yet!'); return; }\n  navigator.clipboard.writeText(tdCurrentClassCode).then(()=>toast('\ud83d\udccb Class code copied! Share with students','green-toast')).catch(()=>{\n    toast('Code: '+tdCurrentClassCode+' \u2014 copy manually','green-toast');\n  });\n}\n\nasync function createNewClass(){\n  const code = Math.random().toString(36).substring(2,8).toUpperCase();\n  const email = currentTeacher ? currentTeacher.email : currentUser ? currentUser.email : null;\n  if(!email){ toast('Not logged in!'); return; }\n  const res = await sheetsCall('createClass', {email, code});\n  if(res.ok){\n    tdCurrentClassCode = code;\n    const el = document.getElementById('td-class-code-display');\n    if(el) el.textContent = code;\n    toast('\u2705 Class created! Code: '+code,'green-toast');\n    tdLoadStats();\n  }\n}\n\nfunction showTeacherOrStudent(){\n  if(currentTeacher){ openTeacherDashboard(); return; }\n  showScreen('teacher-login');\n  initStars('auth-stars-teacher');\n}\nTEACHEREOF\necho \"Teacher JS written: $(wc -c < /tmp/teacher_js.js) chars\"",
+      "description": "Write teacher JS system"
+    },
+    "message": "Write teacher JS system",
+    "integration_name": null,
+    "integration_icon_url": null,
+    "icon_name": "commandLine",
+    "context": null,
+    "display_content": {
+      "type": "json_block",
+      "json_block": "{\"language\": \"bash\", \"code\": \"cat > /tmp/teacher_js.js << 'TEACHEREOF'
+
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+// TEACHER AUTH SYSTEM
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+var currentTeacher = null;
+const TEACHER_VERIFY_CODE = 'TEACH2024'; // Simple verification code
+
+function showTeacherLogin(){ showScreen('teacher-login'); initStars('auth-stars-teacher'); }
+function showTeacherSignup(){ showScreen('teacher-signup'); }
+
+async function doTeacherLogin(){
+  const email = document.getElementById('tl-email').value.trim().toLowerCase();
+  const pass = document.getElementById('tl-pass').value;
+  const err = document.getElementById('teacher-login-err');
+  err.classList.remove('show');
+  if(!email||!pass){ err.textContent='Fill in all fields.'; err.classList.add('show'); return; }
+  const res = await sheetsCall('teacherLogin', { email, password: pass });
+  if(res.ok){
+    currentTeacher = res.teacher;
+    localStorage.setItem('qc_teacher', JSON.stringify(currentTeacher));
+    openTeacherDashboard();
+  } else {
+    err.textContent = res.error || 'Invalid credentials.';
+    err.classList.add('show');
+  }
+}
+
+async function doTeacherSignup(){
+  const fname = document.getElementById('ts-fname').value.trim();
+  const lname = document.getElementById('ts-lname').value.trim();
+  const email = document.getElementById('ts-email').value.trim().toLowerCase();
+  const school = document.getElementById('ts-school').value.trim();
+  const pass = document.getElementById('ts-pass').value;
+  const code = document.getElementById('ts-code').value.trim().toUpperCase();
+  const err = document.getElementById('teacher-signup-err');
+  err.classList.remove('show');
+  if(!fname||!email||!pass||!school){ err.textContent='Fill in all fields.'; err.classList.add('show'); return; }
+  if(pass.length < 6){ err.textContent='Password must be at least 6 characters.'; err.classList.add('show'); return; }
+  if(code !== TEACHER_VERIFY_CODE){ err.textContent='Invalid teacher verification code. Ask your school admin.'; err.classList.add('show'); return; }
+  const res = await sheetsCall('teacherSignup', { fname, lname, email, password: pass, school });
+  if(res.ok){
+    currentTeacher = res.teacher;
+    localStorage.setItem('qc_teacher', JSON.stringify(currentTeacher));
+    openTeacherDashboard();
+  } else {
+    err.textContent = res.error || 'Could not create account.';
+    err.classList.add('show');
+  }
+}
+
+function doTeacherLogout(){
+  currentTeacher = null;
+  localStorage.removeItem('qc_teacher');
+  showScreen('login');
+}
+
+// Auto-login teacher
+(function tryTeacherAutoLogin(){
+  const saved = localStorage.getItem('qc_teacher');
+  if(saved){
+    try{
+      currentTeacher = JSON.parse(saved);
+      // Only auto-open teacher dash if we came from a teacher session
+      // (don't interfere with student auto-login)
+    }catch(e){}
+  }
+})();
+
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+// TEACHER DASHBOARD
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+var tdStudentsData = [];
+var tdCurrentClassCode = '';
+var tdAssignments = [];
+
+function openTeacherDashboard(){
+  showScreen('teacher-dash');
+  const nameEl = document.getElementById('td-teacher-name');
+  if(nameEl && currentTeacher) nameEl.textContent = currentTeacher.fname + ' ' + (currentTeacher.lname||'');
+  tdShowTab('overview');
+  tdLoadAll();
+}
+
+async function tdLoadAll(){
+  await tdLoadClass();
+  tdLoadStats();
+}
+
+async function tdLoadClass(){
+  if(!currentTeacher) return;
+  const res = await sheetsCall('getTeacherClass', { email: currentTeacher.email });
+  if(res.ok && res.classCode){
+    tdCurrentClassCode = res.classCode;
+    const el = document.getElementById('td-class-code-display');
+    if(el) el.textContent = res.classCode;
+    // Load students
+    const sRes = await sheetsCall('getClassStudents', { classCode: res.classCode });
+    if(sRes.ok) tdStudentsData = sRes.students || [];
+    // Load assignments
+    const aRes = await sheetsCall('getAssignments', { classCode: res.classCode });
+    if(aRes.ok) tdAssignments = aRes.assignments || [];
+  } else {
+    const el = document.getElementById('td-class-code-display');
+    if(el) el.textContent = 'No class';
+  }
+}
+
+function tdLoadStats(){
+  const grid = document.getElementById('td-stats-grid');
+  if(!grid) return;
+  const totalStudents = tdStudentsData.length;
+  const avgXp = totalStudents ? Math.round(tdStudentsData.reduce((s,p)=>s+(p.xp||0),0)/totalStudents) : 0;
+  const totalWaves = tdStudentsData.reduce((s,p)=>s+(p.wave||0),0);
+  const activeToday = tdStudentsData.filter(p=>p.lastLogin&&new Date()-new Date(p.lastLogin)<86400000).length;
+  const stats = [
+    {icon:'\\ud83d\\udc65',num:totalStudents,label:'Students'},
+    {icon:'\\u2b50',num:avgXp.toLocaleString(),label:'Avg XP'},
+    {icon:'\\u2694\\ufe0f',num:totalWaves,label:'Total Waves'},
+    {icon:'\\ud83d\\udfe2',num:activeToday,label:'Active Today'},
+    {icon:'\\ud83d\\udccb',num:tdAssignments.length,label:'Assignments'},
+    {icon:'\\ud83c\\udf93',num:tdCurrentClassCode||'\\u2014',label:'Class Code'},
+  ];
+  grid.innerHTML = stats.map(s=>`
+    <div class=\"td-stat-card\">
+      <div style=\"font-size:28px\">${s.icon}</div>
+      <div class=\"td-stat-num\">${s.num}</div>
+      <div class=\"td-stat-label\">${s.label}</div>
+    </div>`).join('');
+}
+
+function tdShowTab(tab){
+  document.querySelectorAll('.td-tab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('.td-nav-btn').forEach(b=>b.classList.remove('active'));
+  const tabEl = document.getElementById('tab-'+tab);
+  const navEl = document.getElementById('tdnav-'+tab);
+  if(tabEl) tabEl.style.display='block';
+  if(navEl) navEl.classList.add('active');
+  // Load tab-specific content
+  if(tab==='students') tdRenderStudents();
+  if(tab==='assignments') tdRenderAssignments();
+  if(tab==='battle') tdRenderBattles();
+  if(tab==='reports') tdRenderReports();
+  if(tab==='classes') tdRenderClasses();
+}
+
+function tdRenderStudents(filter='', sortBy='name'){
+  const list = document.getElementById('td-students-list');
+  if(!list) return;
+  let students = [...tdStudentsData];
+  if(filter) students = students.filter(s=>(s.fname+' '+(s.lname||'')).toLowerCase().includes(filter.toLowerCase()));
+  students.sort((a,b)=>{
+    if(sortBy==='xp') return (b.xp||0)-(a.xp||0);
+    if(sortBy==='wave') return (b.wave||0)-(a.wave||0);
+    return (a.fname||'').localeCompare(b.fname||'');
+  });
+  if(students.length===0){
+    list.innerHTML='<div style=\"font-size:14px;color:rgba(255,255,255,.4);padding:20px;text-align:center\">No students yet \\u2014 share your class code!</div>';
+    return;
+  }
+  list.innerHTML = students.map((s,i)=>`
+    <div class=\"td-student-row\">
+      <div style=\"font-family:'Fredoka One',cursive;font-size:18px;color:#ffb800;width:30px\">${i+1}</div>
+      <div style=\"font-size:24px\">${['\\ud83e\\udd47','\\ud83e\\udd48','\\ud83e\\udd49'][i]||'\\ud83d\\udc64'}</div>
+      <div class=\"td-student-name\">${s.fname||'?'} ${s.lname||''}</div>
+      <div class=\"td-student-stat\">Lv.${s.level||1}</div>
+      <div class=\"td-student-stat\">\\u2b50 ${(s.xp||0).toLocaleString()} XP</div>
+      <div class=\"td-student-stat\">\\u2694\\ufe0f ${s.wave||0} waves</div>
+      <div class=\"td-student-stat\">\\u26cf\\ufe0f ${s.blocks||0} blocks</div>
+      <div class=\"td-student-stat\" style=\"color:${s.lastLogin&&new Date()-new Date(s.lastLogin)<86400000?'#43c47a':'rgba(255,255,255,.3)'}\">
+        ${s.lastLogin&&new Date()-new Date(s.lastLogin)<86400000?'\\ud83d\\udfe2 Today':'\\u26ab Inactive'}
+      </div>
+    </div>`).join('');
+}
+
+function tdFilterStudents(){
+  const filter = (document.getElementById('td-search-student')||{}).value||'';
+  const sort = (document.getElementById('td-sort-student')||{}).value||'name';
+  tdRenderStudents(filter, sort);
+}
+
+function tdRenderAssignments(){
+  const list = document.getElementById('td-assignments-list');
+  if(!list) return;
+  if(tdAssignments.length===0){
+    list.innerHTML='<div style=\"font-size:14px;color:rgba(255,255,255,.4);padding:20px;text-align:center\">No assignments yet \\u2014 create one above!</div>';
+    return;
+  }
+  list.innerHTML = tdAssignments.map((a,i)=>`
+    <div class=\"td-assign-card\">
+      <div style=\"display:flex;align-items:center;gap:10px;margin-bottom:6px\">
+        <span style=\"font-size:20px\">\\ud83d\\udccb</span>
+        <span style=\"font-family:'Fredoka One',cursive;font-size:16px;color:#fff;flex:1\">${a.title||'Untitled'}</span>
+        <span style=\"font-family:'Fredoka One',cursive;font-size:12px;background:rgba(124,77,255,.3);border-radius:8px;padding:2px 8px;color:#a78bfa\">${a.subject||'General'}</span>
+        <button onclick=\"tdDeleteAssignment(${i})\" style=\"background:rgba(244,67,54,.2);border:none;border-radius:8px;padding:3px 10px;color:#ff6b6b;cursor:pointer;font-size:12px\">Delete</button>
+      </div>
+      <div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Grade ${a.grade||'?'} \\u00b7 ${a.questions||0} questions \\u00b7 Due: ${a.due||'No deadline'} ${a.notes?'\\u00b7 '+a.notes:''}</div>
+    </div>`).join('');
+}
+
+async function tdCreateAssignment(){
+  const title = (document.getElementById('td-assign-title')||{}).value.trim();
+  const subject = (document.getElementById('td-assign-subject')||{}).value;
+  const grade = (document.getElementById('td-assign-grade')||{}).value;
+  const questions = parseInt((document.getElementById('td-assign-q')||{}).value)||10;
+  const due = (document.getElementById('td-assign-due')||{}).value;
+  const notes = (document.getElementById('td-assign-notes')||{}).value.trim();
+  if(!title){ toast('Enter an assignment title!'); return; }
+  if(!tdCurrentClassCode){ toast('Create a class first!'); return; }
+  const assignment = JSON.stringify({title,subject,grade,questions,due,notes,createdAt:new Date().toISOString()});
+  const res = await sheetsCall('createAssignment', {classCode:tdCurrentClassCode,assignment,email:currentTeacher.email});
+  if(res.ok){
+    toast('\\ud83d\\udccb Assignment sent to class!','green-toast');
+    tdAssignments.push({title,subject,grade,questions,due,notes});
+    tdRenderAssignments();
+    if(document.getElementById('td-assign-title')) document.getElementById('td-assign-title').value='';
+  } else toast('Error: '+(res.error||'Could not create'));
+}
+
+async function tdDeleteAssignment(idx){
+  tdAssignments.splice(idx,1);
+  const res = await sheetsCall('saveAssignments',{classCode:tdCurrentClassCode,assignments:JSON.stringify(tdAssignments),email:currentTeacher.email});
+  tdRenderAssignments();
+  toast('Assignment deleted');
+}
+
+function tdRenderClasses(){
+  const list = document.getElementById('td-classes-list');
+  if(!list) return;
+  list.innerHTML = `
+    <div style=\"background:rgba(255,255,255,.05);border:2px solid rgba(67,196,122,.3);border-radius:18px;padding:16px\">
+      <div style=\"display:flex;align-items:center;gap:12px;margin-bottom:12px\">
+        <div style=\"font-size:32px\">\\ud83c\\udfeb</div>
+        <div>
+          <div style=\"font-family:'Fredoka One',cursive;font-size:18px;color:#fff\">Class ${tdCurrentClassCode||'(no class)'}</div>
+          <div style=\"font-size:13px;color:rgba(255,255,255,.5)\">${tdStudentsData.length} students enrolled</div>
+        </div>
+        <div style=\"margin-left:auto;font-family:'Fredoka One',cursive;font-size:28px;color:#ffb800\">${tdCurrentClassCode||'\\u2014'}</div>
+      </div>
+      <div style=\"display:flex;gap:10px;flex-wrap:wrap\">
+        <button onclick=\"copyClassCode()\" style=\"font-family:'Fredoka One',cursive;font-size:13px;background:rgba(255,184,0,.2);border:2px solid rgba(255,184,0,.3);border-radius:12px;padding:7px 16px;color:#ffb800;cursor:pointer\">\\ud83d\\udccb Copy Code</button>
+        <button onclick=\"createNewClass()\" style=\"font-family:'Fredoka One',cursive;font-size:13px;background:rgba(67,196,122,.2);border:2px solid rgba(67,196,122,.3);border-radius:12px;padding:7px 16px;color:#43c47a;cursor:pointer\">\\u2795 New Class</button>
+      </div>
+    </div>`;
+}
+
+function tdRenderBattles(){
+  const list = document.getElementById('td-battles-list');
+  if(!list) return;
+  list.innerHTML='<div style=\"font-size:14px;color:rgba(255,255,255,.4);padding:20px;text-align:center\">No battles yet \\u2014 challenge another class!</div>';
+}
+
+function tdRenderReports(){
+  const grid = document.getElementById('td-reports-grid');
+  if(!grid) return;
+  const avgXp = tdStudentsData.length ? Math.round(tdStudentsData.reduce((s,p)=>s+(p.xp||0),0)/tdStudentsData.length) : 0;
+  const topStudent = [...tdStudentsData].sort((a,b)=>(b.xp||0)-(a.xp||0))[0];
+  const mostActive = [...tdStudentsData].sort((a,b)=>(b.wave||0)-(a.wave||0))[0];
+  const totalBlocks = tdStudentsData.reduce((s,p)=>s+(p.blocks||0),0);
+  grid.innerHTML = `
+    <div style=\"background:rgba(255,184,0,.08);border:2px solid rgba(255,184,0,.2);border-radius:18px;padding:16px;grid-column:span 2\">
+      <div style=\"font-family:'Fredoka One',cursive;font-size:16px;color:#ffb800;margin-bottom:10px\">\\ud83d\\udcca Class Summary</div>
+      <div style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:10px\">
+        <div style=\"text-align:center\"><div style=\"font-size:28px;font-family:'Fredoka One',cursive;color:#ffb800\">${avgXp.toLocaleString()}</div><div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Average XP</div></div>
+        <div style=\"text-align:center\"><div style=\"font-size:28px;font-family:'Fredoka One',cursive;color:#43c47a\">${tdStudentsData.reduce((s,p)=>s+(p.wave||0),0)}</div><div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Total Waves</div></div>
+        <div style=\"text-align:center\"><div style=\"font-size:28px;font-family:'Fredoka One',cursive;color:#00bcd4\">${totalBlocks.toLocaleString()}</div><div style=\"font-size:12px;color:rgba(255,255,255,.5)\">Blocks Mined</div></div>
+      </div>
+    </div>
+    ${topStudent?`<div style=\"background:rgba(255,184,0,.08);border:2px solid rgba(255,184,0,.2);border-radius:18px;padding:16px\">
+      <div style=\"font-family:'Fredoka One',cursive;font-size:14px;color:#ffb800;margin-bottom:8px\">\\ud83e\\udd47 Top Student</div>
+      <div style=\"font-family:'Fredoka One',cursive;font-size:20px;color:#fff\">${topStudent.fname} ${topStudent.lname||''}</div>
+      <div style=\"font-size:13px;color:rgba(255,255,255,.5)\">\\u2b50 ${(topStudent.xp||0).toLocaleString()} XP</div>
+    </div>`:''}
+    ${mostActive?`<div style=\"background:rgba(67,196,122,.08);border:2px solid rgba(67,196,122,.2);border-radius:18px;padding:16px\">
+      <div style=\"font-family:'Fredoka One',cursive;font-size:14px;color:#43c47a;margin-bottom:8px\">\\u2694\\ufe0f Most Active</div>
+      <div style=\"font-family:'Fredoka One',cursive;font-size:20px;color:#fff\">${mostActive.fname} ${mostActive.lname||''}</div>
+      <div style=\"font-size:13px;color:rgba(255,255,255,.5)\">\\u2694\\ufe0f ${mostActive.wave||0} waves completed</div>
+    </div>`:''}`;
+}
+
+async function tdCreateClassBattle(){
+  const opponent = (document.getElementById('td-battle-opponent')||{}).value.trim().toUpperCase();
+  const subject = (document.getElementById('td-battle-subject')||{}).value;
+  const rounds = (document.getElementById('td-battle-rounds')||{}).value;
+  if(!opponent){ toast('Enter the opponent class code!'); return; }
+  if(!tdCurrentClassCode){ toast('Create a class first!'); return; }
+  toast('\\u2694\\ufe0f Battle challenge sent to class '+opponent+'!','gold-toast');
+  // TODO: implement with real-time backend
+}
+
+function copyClassCode(){
+  if(!tdCurrentClassCode){ toast('No class code yet!'); return; }
+  navigator.clipboard.writeText(tdCurrentClassCode).then(()=>toast('\\ud83d\\udccb Class code copied! Share with students','green-toast')).catch(()=>{
+    toast('Code: '+tdCurrentClassCode+' \\u2014 copy manually','green-toast');
+  });
+}
+
+async function createNewClass(){
+  const code = Math.random().toString(36).substring(2,8).toUpperCase();
+  const email = currentTeacher ? currentTeacher.email : currentUser ? currentUser.email : null;
+  if(!email){ toast('Not logged in!'); return; }
+  const res = await sheetsCall('createClass', {email, code});
+  if(res.ok){
+    tdCurrentClassCode = code;
+    const el = document.getElementById('td-class-code-display');
+    if(el) el.textContent = code;
+    toast('\\u2705 Class created! Code: '+code,'green-toast');
+    tdLoadStats();
+  }
+}
+
+function showTeacherOrStudent(){
+  if(currentTeacher){ openTeacherDashboard(); return; }
+  showScreen('teacher-login');
+  initStars('auth-stars-teacher');
+}
+TEACHEREOF
+echo \"Teacher JS written: $(wc -c < /tmp/teacher_js.js) chars\"\"}"
+    },
+    "approval_options": null,
+    "approval_key": null,
+    "approval_key_legacy": null,
+    "is_mcp_app": null,
+    "mcp_server_url": null
+  },
+
+// ════════════════════════════════════════════
+// SERVER BROWSER + MULTIPLAYER
+// ════════════════════════════════════════════
+_timestamp": "2026-06-26T06:43:17.961596Z",
+    "flags": null,
+    "type": "tool_use",
+    "id": "toolu_01BTBhBYMgsuyRuShC5fejgF",
+    "name": "create_file",
+    "input": {
+      "description": "Full multiplayer server system, test dummy, and building JS",
+      "file_text": "\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n// SERVER BROWSER\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nfunction showServers(){\n  showScreen('servers');\n  refreshServers();\n}\n\nasync function refreshServers(){\n  const loading = document.getElementById('server-loading');\n  const list = document.getElementById('server-list');\n  if(loading) loading.style.display = 'block';\n  if(list) list.style.display = 'none';\n  const res = await sheetsCall('getServers', {});\n  if(loading) loading.style.display = 'none';\n  if(list) list.style.display = 'block';\n  if(res.ok && res.servers && res.servers.length > 0){\n    list.innerHTML = '';\n    res.servers.forEach(s => {\n      const card = document.createElement('div');\n      card.className = 'server-card';\n      card.innerHTML = `\n        <div style=\"font-size:28px\">${s.type==='class'?'\ud83c\udf93':s.type==='private'?'\ud83d\udd12':'\ud83c\udf0d'}</div>\n        <div style=\"flex:1\">\n          <div class=\"server-name\">${s.name||'Unnamed Server'}</div>\n          <div class=\"server-info\">${s.playerCount||0}/${s.maxPlayers||10} players \u00b7 ${s.type||'open'} \u00b7 Created by ${s.hostName||'?'}</div>\n        </div>\n        <button class=\"server-join-btn\" onclick=\"joinServer('${s.id}','${s.type}','${s.name}')\">Join \u2192</button>`;\n      list.appendChild(card);\n    });\n  } else {\n    if(list) list.innerHTML = '<div style=\"text-align:center;font-family:'Fredoka One',cursive;font-size:16px;color:rgba(255,255,255,.4);padding:30px\">No servers online right now.<br>Be the first to create one!</div>';\n  }\n}\n\nfunction createServer(){\n  const form = document.getElementById('create-server-form');\n  if(form) form.style.display = form.style.display==='none' ? 'block' : 'none';\n}\n\nasync function submitCreateServer(){\n  const name = (document.getElementById('server-name-input')||{}).value.trim();\n  const type = (document.getElementById('server-type')||{}).value;\n  const maxP = parseInt((document.getElementById('server-max')||{}).value)||10;\n  if(!name){ toast('Enter a server name!'); return; }\n  if(!currentUser){ toast('Log in first!'); return; }\n  const res = await sheetsCall('createServer', {\n    name, type, maxPlayers: maxP,\n    hostEmail: currentUser.email, hostName: currentUser.fname\n  });\n  if(res.ok){\n    enterMultiplayer(res.serverId, name);\n  } else {\n    toast(res.error || 'Could not create server.');\n  }\n}\n\nasync function joinServer(serverId, type, name){\n  if(!currentUser){ toast('Log in first!'); return; }\n  if(type === 'class'){\n    if(!S.classCode){ toast('You need to be in a class to join this server!'); return; }\n  }\n  const res = await sheetsCall('joinServer', {\n    serverId, email: currentUser.email, fname: currentUser.fname\n  });\n  if(res.ok){\n    enterMultiplayer(serverId, name);\n  } else {\n    toast(res.error || 'Could not join server.');\n  }\n}\n\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n// MULTIPLAYER WORLD ENGINE\n// \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\nvar mpRenderer=null, mpScene=null, mpCamera=null, mpAnimFrame=null;\nvar mpKeys={}, mpYaw=0, mpPitch=0, mpPointerLocked=false;\nvar mpMouseDx=0, mpMouseDy=0;\nvar mpServerId=null, mpServerName='';\nvar mpPlayers={}, mpMyPlayer=null;\nvar mpBlocks=[], mpPlacedBlocks=[];\nvar mpSelectedSlot=0;\nvar mpPlayerHp=100, mpPlayerMaxHp=100;\nvar mpPollInterval=null, mpChatOpen=false;\nvar mpTestDummy=null, mpDummyHp=200, mpDummyMaxHp=200;\nvar mpBuildMode=false;\n\nconst MP_BLOCK_TYPES=[\n  {id:'stone',color:0x888888,label:'Stone'},\n  {id:'wood',color:0x8B4513,label:'Wood'},\n  {id:'dirt',color:0x7a5a40,label:'Dirt'},\n  {id:'glass',color:0xaaddff,label:'Glass',transparent:true},\n  {id:'gold',color:0xffd700,label:'Gold Block'},\n  {id:'diamond',color:0x00e5ff,label:'Diamond Block'},\n  {id:'fire',color:0xff4400,label:'Netherrack'},\n  {id:'ice',color:0xaaccff,label:'Ice Block'},\n  {id:'obsidian',color:0x1a0a2a,label:'Obsidian'},\n];\nconst SLOT_ITEMS=['sword','pickaxe','axe','bow','stone','wood','dirt','diamond','fire'];\n\nfunction enterMultiplayer(serverId, serverName){\n  mpServerId = serverId;\n  mpServerName = serverName;\n  showScreen('multiplayer');\n  const nameEl = document.getElementById('mp-server-name-display');\n  if(nameEl) nameEl.textContent = '\ud83c\udf10 '+serverName;\n  requestAnimationFrame(()=>initMultiplayer());\n}\n\nfunction initMultiplayer(){\n  const canvas = document.getElementById('mp-canvas');\n  if(!canvas) return;\n  const W=window.innerWidth, H=window.innerHeight;\n  canvas.width=W; canvas.height=H;\n  if(mpRenderer){cancelAnimationFrame(mpAnimFrame);mpRenderer.dispose();}\n  mpKeys={}; mpYaw=0; mpPitch=0; mpPointerLocked=false;\n  mpMouseDx=0; mpMouseDy=0; mpPlacedBlocks=[]; mpSelectedSlot=0;\n  mpPlayerHp=100; mpPlayerMaxHp=100; mpDummyHp=200;\n\n  mpScene = new THREE.Scene();\n  mpScene.background = new THREE.Color(0x87ceeb);\n  mpScene.fog = new THREE.Fog(0x87ceeb, 30, 120);\n\n  mpCamera = new THREE.PerspectiveCamera(75, W/H, 0.05, 200);\n  mpCamera.position.set(0, 1.7, 10);\n\n  mpRenderer = new THREE.WebGLRenderer({canvas, antialias:true});\n  mpRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));\n  mpRenderer.setSize(W,H);\n  mpRenderer.shadowMap.enabled=true;\n\n  // Lighting\n  mpScene.add(new THREE.AmbientLight(0xfff8e8, 0.8));\n  const sun = new THREE.DirectionalLight(0xfffbe8, 1.0);\n  sun.position.set(50,100,50); sun.castShadow=true;\n  sun.shadow.mapSize.width=2048; sun.shadow.mapSize.height=2048;\n  mpScene.add(sun);\n\n  buildMpWorld();\n  buildTestDummy();\n  buildMpSwordModel();\n\n  // Controls\n  canvas.addEventListener('click', ()=>{if(!mpPointerLocked)canvas.requestPointerLock();});\n  document.addEventListener('pointerlockchange', ()=>{\n    mpPointerLocked = document.pointerLockElement===canvas;\n    const hint = document.getElementById('mp-hint');\n    if(hint) hint.style.opacity = mpPointerLocked?'0':'1';\n  });\n  document.addEventListener('mousemove', onMpMouseMove);\n  document.addEventListener('mousedown', onMpMouseDown);\n  document.addEventListener('keydown', onMpKeyDown);\n  document.addEventListener('keyup', onMpKeyUp);\n\n  // Poll server for other players every 2s\n  mpPollInterval = setInterval(pollMpServer, 2000);\n  updateMpHpDisplay();\n  updateMpHotbar();\n\n  let t=0;\n  function mpLoop(){\n    mpAnimFrame = requestAnimationFrame(mpLoop);\n    t+=0.016;\n    if(mpPointerLocked){\n      mpYaw -= mpMouseDx*0.002; mpPitch -= mpMouseDy*0.002;\n      mpPitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, mpPitch));\n      mpMouseDx=0; mpMouseDy=0;\n      const qY=new THREE.Quaternion(); qY.setFromAxisAngle(new THREE.Vector3(0,1,0),mpYaw);\n      const qX=new THREE.Quaternion(); qX.setFromAxisAngle(new THREE.Vector3(1,0,0),mpPitch);\n      mpCamera.quaternion.copy(qY.multiply(qX));\n    }\n    // Movement\n    const fwd=new THREE.Vector3(), right=new THREE.Vector3();\n    mpCamera.getWorldDirection(fwd); fwd.y=0; fwd.normalize();\n    right.crossVectors(fwd, new THREE.Vector3(0,1,0));\n    const mv=new THREE.Vector3();\n    if(mpKeys['w']||mpKeys['arrowup']) mv.add(fwd);\n    if(mpKeys['s']||mpKeys['arrowdown']) mv.addScaledVector(fwd,-1);\n    if(mpKeys['a']||mpKeys['arrowleft']) mv.addScaledVector(right,-1);\n    if(mpKeys['d']||mpKeys['arrowright']) mv.add(right);\n    if(mv.length()>0){\n      mv.normalize().multiplyScalar(0.1);\n      const np = mpCamera.position.clone().add(mv);\n      np.x=Math.max(-60,Math.min(60,np.x));\n      np.z=Math.max(-60,Math.min(60,np.z));\n      mpCamera.position.copy(np);\n    }\n    // Gravity / jump\n    if(mpKeys['r']) mpCamera.position.y = Math.min(30, mpCamera.position.y+0.15);\n    else if(mpCamera.position.y > 1.7) mpCamera.position.y = Math.max(1.7, mpCamera.position.y-0.08);\n    else mpCamera.position.y=1.7;\n    // Animate dummy\n    if(mpTestDummy){\n      mpTestDummy.rotation.y = t*0.8;\n      mpTestDummy.position.y = 0.5 + Math.sin(t*1.5)*0.08;\n    }\n    // Update other player positions\n    updateMpPlayerMeshes(t);\n    mpRenderer.render(mpScene, mpCamera);\n  }\n  mpLoop();\n}\n\nfunction buildMpWorld(){\n  // Grass floor (big)\n  for(let x=-60;x<=60;x+=4)for(let z=-60;z<=60;z+=4){\n    const c=Math.random()<0.08?0x2a7a08:Math.random()<0.05?0x5a9a18:0x3a8a18;\n    const b=new THREE.Mesh(new THREE.BoxGeometry(4,0.5,4),new THREE.MeshLambertMaterial({color:c}));\n    b.position.set(x,-0.25,z); b.receiveShadow=true; mpScene.add(b);\n  }\n  // Dirt layer below\n  for(let x=-60;x<=60;x+=4)for(let z=-60;z<=60;z+=4){\n    const b=new THREE.Mesh(new THREE.BoxGeometry(4,1,4),new THREE.MeshLambertMaterial({color:0x7a5a40}));\n    b.position.set(x,-1.0,z); mpScene.add(b);\n  }\n  // Central spawn platform\n  for(let x=-5;x<=5;x++)for(let z=-5;z<=5;z++){\n    const b=new THREE.Mesh(new THREE.BoxGeometry(1,0.3,1),new THREE.MeshLambertMaterial({color:0x888888}));\n    b.position.set(x,0.15,z); b.castShadow=true; b.receiveShadow=true; mpScene.add(b);\n  }\n  // Trees scattered around\n  const treePositions=[[-15,0,-15],[15,0,-15],[-15,0,15],[15,0,15],[0,0,-20],[-25,0,0],[25,0,0],[0,0,25]];\n  treePositions.forEach(([x,y,z])=>buildMpTree(x,z));\n  // Water area\n  const water=new THREE.Mesh(new THREE.BoxGeometry(12,0.2,12),new THREE.MeshLambertMaterial({color:0x2288cc,transparent:true,opacity:0.75}));\n  water.position.set(-30,0,-30); mpScene.add(water);\n  // Mountain/hill\n  for(let y=0;y<5;y++){\n    const s=5-y;\n    for(let x=-s;x<=s;x++)for(let z=-s;z<=s;z++){\n      const b=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:y<2?0x888888:y<4?0x666666:0xffffff}));\n      b.position.set(30+x,y+0.5,-30+z); b.castShadow=true; mpScene.add(b);\n    }\n  }\n  // Clouds\n  for(let i=0;i<12;i++){\n    const cx=(Math.random()-0.5)*100, cy=20+Math.random()*15, cz=(Math.random()-0.5)*100;\n    const cl=new THREE.Mesh(new THREE.BoxGeometry(6+Math.random()*6,2,4),new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:0.85}));\n    cl.position.set(cx,cy,cz); mpScene.add(cl);\n  }\n  // TEST DUMMY AREA \u2014 marked with red carpet\n  for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++){\n    const b=new THREE.Mesh(new THREE.BoxGeometry(1,0.1,1),new THREE.MeshLambertMaterial({color:0xcc0000}));\n    b.position.set(20+x,0.05,0+z); mpScene.add(b);\n  }\n  // \"TRAINING\" sign\n  const sign=new THREE.Mesh(new THREE.BoxGeometry(4,0.8,0.1),new THREE.MeshLambertMaterial({color:0x8B4513}));\n  sign.position.set(20,2.5,-3); mpScene.add(sign);\n}\n\nfunction buildMpTree(x,z){\n  const trunkH = 3+Math.floor(Math.random()*2);\n  for(let y=0;y<trunkH;y++){\n    const b=new THREE.Mesh(new THREE.BoxGeometry(0.8,1,0.8),new THREE.MeshLambertMaterial({color:0x5a3a18}));\n    b.position.set(x,y+0.5,z); b.castShadow=true; mpScene.add(b);\n  }\n  const leavesS = 2.5+Math.random();\n  const lv=new THREE.Mesh(new THREE.BoxGeometry(leavesS,leavesS*0.7,leavesS),new THREE.MeshLambertMaterial({color:0x2a7a10}));\n  lv.position.set(x,trunkH+leavesS*0.35,z); lv.castShadow=true; mpScene.add(lv);\n}\n\n// \u2500\u2500 TEST DUMMY \u2500\u2500\nvar mpDummyMesh=null, mpDummyHpBar=null, mpDummyHpFill=null;\nfunction buildTestDummy(){\n  if(mpDummyMesh){ mpScene.remove(mpDummyMesh); }\n  const hpRatio = mpDummyHp/mpDummyMaxHp;\n  const dark = 0.3+0.7*hpRatio;\n  function dc(c){ return new THREE.Color(c).multiplyScalar(dark).getHex(); }\n\n  const g=new THREE.Group();\n  // Body (wooden dummy / scarecrow look)\n  const body=new THREE.Mesh(new THREE.BoxGeometry(0.9,1.1,0.5),new THREE.MeshLambertMaterial({color:dc(0xc8a46e)}));\n  body.position.y=1.0; g.add(body);\n  // Target circles on body\n  const t1=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05,16),new THREE.MeshBasicMaterial({color:0xcc0000}));\n  t1.rotation.x=Math.PI/2; t1.position.set(0,1.0,0.27); g.add(t1);\n  const t2=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.06,16),new THREE.MeshBasicMaterial({color:0xffffff}));\n  t2.rotation.x=Math.PI/2; t2.position.set(0,1.0,0.28); g.add(t2);\n  const t3=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.07,16),new THREE.MeshBasicMaterial({color:0xcc0000}));\n  t3.rotation.x=Math.PI/2; t3.position.set(0,1.0,0.29); g.add(t3);\n  // Head\n  const head=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.7,0.6),new THREE.MeshLambertMaterial({color:dc(0xd4a46e)}));\n  head.position.y=1.95; g.add(head);\n  // Hat\n  const hat=new THREE.Mesh(new THREE.BoxGeometry(0.85,0.12,0.85),new THREE.MeshLambertMaterial({color:0x2a1a00}));\n  hat.position.y=2.38; g.add(hat);\n  const hatTop=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.35,0.55),new THREE.MeshLambertMaterial({color:0x2a1a00}));\n  hatTop.position.y=2.55; g.add(hatTop);\n  // Eyes\n  [-0.16,0.16].forEach(ex=>{\n    const eye=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.08,0.05),new THREE.MeshBasicMaterial({color:hpRatio<0.3?0xff0000:0x000000}));\n    eye.position.set(ex,2.02,0.31); g.add(eye);\n  });\n  // Arms (horizontal stick arms)\n  [-0.65,0.65].forEach(ax=>{\n    const arm=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.16,0.16),new THREE.MeshLambertMaterial({color:dc(0x8B4513)}));\n    arm.position.set(ax,1.35,0); g.add(arm);\n  });\n  // Vertical post\n  const post=new THREE.Mesh(new THREE.BoxGeometry(0.14,3,0.14),new THREE.MeshLambertMaterial({color:0x6B3410}));\n  post.position.set(0,0,0); g.add(post);\n  // Cracks when damaged\n  if(hpRatio<0.6){\n    for(let i=0;i<4;i++){\n      const cr=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.3*(1-hpRatio)*2,0.02),new THREE.MeshBasicMaterial({color:0x000000}));\n      cr.position.set((Math.random()-0.5)*0.6,0.8+Math.random()*0.5,0.27);\n      cr.rotation.z=(Math.random()-0.5)*0.5; g.add(cr);\n    }\n  }\n  g.position.set(20,0,0);\n  mpScene.add(g);\n  mpDummyMesh=g;\n  // HP bar\n  if(mpDummyHpBar) mpScene.remove(mpDummyHpBar);\n  if(mpDummyHpFill) mpScene.remove(mpDummyHpFill);\n  mpDummyHpBar=new THREE.Mesh(new THREE.PlaneGeometry(1.8,0.22),new THREE.MeshBasicMaterial({color:0x330000,side:THREE.DoubleSide}));\n  mpDummyHpFill=new THREE.Mesh(new THREE.PlaneGeometry(1.78,0.18),new THREE.MeshBasicMaterial({color:hpRatio>0.5?0x44cc00:hpRatio>0.25?0xffaa00:0xff2200,side:THREE.DoubleSide}));\n  mpDummyHpBar.position.set(20,3.2,0); mpDummyHpFill.position.set(20-(1.78*(1-hpRatio)/2),3.22,0.01);\n  mpDummyHpFill.scale.x=Math.max(0.01,hpRatio);\n  mpScene.add(mpDummyHpBar); mpScene.add(mpDummyHpFill);\n}\n\nfunction hitDummy(dmg){\n  mpDummyHp = Math.max(0,mpDummyHp-dmg);\n  showWorldDmg('-'+dmg+' DMG!','#ff4444');\n  // Show damage on dummy\n  const pct = Math.round((1-mpDummyHp/mpDummyMaxHp)*100);\n  toast('\ud83c\udfaf Hit dummy! -'+dmg+' damage ('+mpDummyHp+'/'+mpDummyMaxHp+' HP)','gold-toast');\n  buildTestDummy(); // Rebuild to show damage state\n  if(mpDummyHp<=0){\n    toast('\ud83d\udca5 Dummy destroyed! Great damage! Respawning...','gold-toast');\n    particles('\ud83d\udca5');\n    setTimeout(()=>{ mpDummyHp=mpDummyMaxHp; buildTestDummy(); },3000);\n  }\n}\n\n// \u2500\u2500 MP SWORD MODEL \u2500\u2500\nvar mpSwordMesh=null, mpSwordSwingT=0, mpSwordSwinging=false;\nfunction buildMpSwordModel(){\n  if(mpSwordMesh){ mpCamera.remove(mpSwordMesh); mpSwordMesh=null; }\n  if(SLOT_ITEMS[mpSelectedSlot]!=='sword') return;\n  const g=new THREE.Group();\n  const sl=S.toolLevel&&S.toolLevel.sword||1;\n  const tier=getToolTier(sl);\n  const bc=tier.color;\n  const bMat=new THREE.MeshLambertMaterial({color:bc,emissive:new THREE.Color(tier.emissive)});\n  // Blade\n  const blade1=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.32,0.05),bMat);\n  blade1.position.set(0,0.18,0); g.add(blade1);\n  const blade2=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.28,0.05),bMat.clone());\n  blade2.position.set(0,-0.10,0); g.add(blade2);\n  const tip=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.10,0.05),bMat.clone());\n  tip.position.set(0,-0.28,0); g.add(tip);\n  const guardMat=new THREE.MeshLambertMaterial({color:tier.tier>=4?bc:0x5a3a10});\n  const guard=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.08,0.06),guardMat);\n  guard.position.set(0,-0.32,0); g.add(guard);\n  const handle=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.24,0.06),new THREE.MeshLambertMaterial({color:0x3a1a00}));\n  handle.position.set(0,-0.47,0); g.add(handle);\n  const pommel=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.08,0.07),guardMat.clone());\n  pommel.position.set(0,-0.60,0); g.add(pommel);\n  if(tier.tier>=5){const glow=new THREE.PointLight(bc,1.2,2.0);glow.position.set(0,0.2,0.1);g.add(glow);}\n  g.position.set(0.32,-0.30,-0.45); g.rotation.set(0.15,0.25,-0.05);\n  mpCamera.add(g); mpSwordMesh=g; mpScene.add(mpCamera);\n}\n\n// \u2500\u2500 BUILDING SYSTEM \u2500\u2500\nvar mpRaycaster=new THREE.Raycaster();\nvar mpBuildInteractables=[];\n\nfunction onMpMouseDown(e){\n  if(!mpPointerLocked) return;\n  if(e.button===0) onMpClickLeft();\n  if(e.button===2){ e.preventDefault(); onMpClickRight(); }\n}\nfunction onMpClickLeft(){\n  const slot=SLOT_ITEMS[mpSelectedSlot];\n  if(slot==='sword') mpSwingSword();\n  else if(slot==='pickaxe'||slot==='axe') mpMineBlock();\n  else mpPlaceBlock(slot); // place block\n}\nfunction onMpClickRight(){\n  mpMineBlock(); // right click = break\n}\n\nfunction mpSwingSword(){\n  if(mpSwordSwinging) return;\n  mpSwordSwinging=true; mpSwordSwingT=0;\n  const sl=S.toolLevel&&S.toolLevel.sword||1;\n  const tier=getToolTier(sl);\n  const dmg=Math.round((10+sl*3)*tier.attackMult*(0.85+Math.random()*0.3));\n  mpRaycaster.setFromCamera({x:0,y:0},mpCamera);\n  const hits=mpRaycaster.intersectObjects([mpDummyMesh].filter(Boolean),true);\n  if(hits.length>0&&hits[0].distance<4){\n    hitDummy(dmg);\n  } else {\n    // Check other players... (placeholder for real multiplayer)\n    showWorldDmg('miss','rgba(255,255,255,.4)');\n  }\n  if(mpSwordMesh){\n    let sw=0;\n    const iv=setInterval(()=>{\n      sw+=0.2; mpSwordMesh.rotation.x=0.15-Math.sin(sw)*0.9;\n      mpSwordMesh.rotation.z=-0.05+Math.sin(sw)*0.5;\n      if(sw>Math.PI){clearInterval(iv);mpSwordMesh.rotation.x=0.15;mpSwordMesh.rotation.z=-0.05;mpSwordSwinging=false;}\n    },16);\n  }\n}\n\nfunction mpMineBlock(){\n  mpRaycaster.setFromCamera({x:0,y:0},mpCamera);\n  const hits=mpRaycaster.intersectObjects(mpBuildInteractables,false);\n  if(hits.length>0&&hits[0].distance<6){\n    const mesh=hits[0].object;\n    mpScene.remove(mesh);\n    mpBuildInteractables=mpBuildInteractables.filter(m=>m!==mesh);\n    mpPlacedBlocks=mpPlacedBlocks.filter(b=>b.mesh!==mesh);\n    particles('\u26cf\ufe0f');\n    toast('Block removed!','green-toast');\n  }\n}\n\nfunction mpPlaceBlock(type){\n  const blockDef=MP_BLOCK_TYPES.find(b=>b.id===type)||MP_BLOCK_TYPES[0];\n  mpRaycaster.setFromCamera({x:0,y:0},mpCamera);\n  const allMeshes=[...mpBuildInteractables];\n  const hits=mpRaycaster.intersectObjects(allMeshes,false);\n  let placePos;\n  if(hits.length>0&&hits[0].distance<6){\n    const hit=hits[0];\n    const normal=hit.face.normal.clone();\n    placePos=hit.point.clone().add(normal.multiplyScalar(0.51));\n    placePos.x=Math.round(placePos.x);\n    placePos.y=Math.round(placePos.y);\n    placePos.z=Math.round(placePos.z);\n  } else {\n    // Place at look direction\n    const dir=new THREE.Vector3();\n    mpCamera.getWorldDirection(dir);\n    placePos=mpCamera.position.clone().add(dir.multiplyScalar(3));\n    placePos.x=Math.round(placePos.x);\n    placePos.y=Math.max(1,Math.round(placePos.y));\n    placePos.z=Math.round(placePos.z);\n  }\n  const mat=new THREE.MeshLambertMaterial({color:blockDef.color,transparent:!!blockDef.transparent,opacity:blockDef.transparent?0.6:1});\n  const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mat);\n  mesh.position.copy(placePos);\n  mesh.castShadow=true; mesh.receiveShadow=true;\n  // Edges\n  const edges=new THREE.EdgesGeometry(mesh.geometry);\n  const lines=new THREE.LineSegments(edges,new THREE.LineBasicMaterial({color:0x000000,opacity:0.3,transparent:true}));\n  mesh.add(lines);\n  mpScene.add(mesh);\n  mpBuildInteractables.push(mesh);\n  mpPlacedBlocks.push({mesh, type, pos:{x:placePos.x,y:placePos.y,z:placePos.z}});\n  particles('\ud83e\uddf1');\n  // Sync to server (best-effort)\n  sheetsCall('placeBlock',{serverId:mpServerId,email:currentUser.email,blockType:type,x:placePos.x,y:placePos.y,z:placePos.z}).catch(()=>{});\n}\n\nfunction selectSlot(i){\n  mpSelectedSlot=i;\n  document.querySelectorAll('.mp-slot').forEach((s,idx)=>s.classList.toggle('active',idx===i));\n  buildMpSwordModel();\n  const hint=document.getElementById('mp-interact-prompt');\n  if(hint){\n    const slot=SLOT_ITEMS[i];\n    if(slot==='sword') hint.textContent='\u2694\ufe0f Sword \u2014 Left-click to attack \u00b7 Find the test dummy at x:20!';\n    else if(slot==='pickaxe'||slot==='axe') hint.textContent='\u26cf\ufe0f Tool \u2014 Right-click to break blocks';\n    else hint.textContent='\ud83e\uddf1 '+slot+' \u2014 Left-click to place block';\n    hint.style.display='block';\n    setTimeout(()=>{if(hint)hint.style.display='none';},3000);\n  }\n}\n\nfunction onMpMouseMove(e){if(!mpPointerLocked)return;mpMouseDx+=e.movementX;mpMouseDy+=e.movementY;}\nfunction onMpKeyDown(e){\n  mpKeys[e.key.toLowerCase()]=true;\n  if(e.key==='Tab'){e.preventDefault();toggleMpPlayerList();}\n  if(e.key==='t'||e.key==='T'){e.preventDefault();openMpChat();}\n  if(e.key==='Enter'&&mpChatOpen)sendMpChat();\n  if(e.key==='Escape'&&mpChatOpen)closeMpChat();\n  if(e.key>='1'&&e.key<='9') selectSlot(parseInt(e.key)-1);\n}\nfunction onMpKeyUp(e){mpKeys[e.key.toLowerCase()]=false;}\n\n// \u2500\u2500 CHAT \u2500\u2500\nfunction openMpChat(){\n  mpChatOpen=true;\n  const row=document.getElementById('mp-chat-input-row');\n  if(row){row.style.display='block';document.getElementById('mp-chat-input').focus();}\n  if(document.exitPointerLock)document.exitPointerLock();\n}\nfunction closeMpChat(){\n  mpChatOpen=false;\n  const row=document.getElementById('mp-chat-input-row');\n  if(row)row.style.display='none';\n}\nasync function sendMpChat(){\n  const inp=document.getElementById('mp-chat-input');\n  if(!inp||!inp.value.trim())return;\n  const msg=inp.value.trim().substring(0,100);\n  inp.value='';\n  closeMpChat();\n  addMpChatMsg(currentUser.fname+': '+msg,'#fff');\n  await sheetsCall('mpChat',{serverId:mpServerId,email:currentUser.email,fname:currentUser.fname,msg});\n}\nfunction addMpChatMsg(text,color){\n  const msgs=document.getElementById('mp-chat-messages');\n  if(!msgs)return;\n  const div=document.createElement('div');\n  div.className='mp-chat-msg';\n  div.style.color=color||'#fff';\n  div.textContent=text;\n  msgs.appendChild(div);\n  msgs.scrollTop=msgs.scrollHeight;\n  // Remove old messages\n  while(msgs.children.length>20)msgs.removeChild(msgs.firstChild);\n  setTimeout(()=>{div.style.opacity='0';div.style.transition='opacity 1s';setTimeout(()=>div.remove(),1000);},8000);\n}\n\n// \u2500\u2500 PLAYER MESHES (other players) \u2500\u2500\nfunction updateMpPlayerMeshes(t){\n  // Update existing player meshes\n  Object.values(mpPlayers).forEach(p=>{\n    if(p.mesh) p.mesh.position.lerp(new THREE.THREE.Vector3(p.x,p.y,p.z),0.1);\n  });\n}\n\nfunction makeMpPlayerMesh(fname,color){\n  const g=new THREE.Group();\n  const mat=new THREE.MeshLambertMaterial({color:color||0x4488ff});\n  const body=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.8,0.4),mat);\n  body.position.y=1.0; g.add(body);\n  const head=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),mat.clone());\n  head.position.y=1.68; g.add(head);\n  // Name tag\n  return g;\n}\n\nasync function pollMpServer(){\n  if(!mpServerId||!mpScene)return;\n  const res=await sheetsCall('pollServer',{serverId:mpServerId,email:currentUser.email,\n    x:Math.round(mpCamera.position.x),y:Math.round(mpCamera.position.y),z:Math.round(mpCamera.position.z)}).catch(()=>null);\n  if(!res||!res.ok)return;\n  // Update player count\n  const pcount=document.getElementById('mp-pcount');\n  if(pcount) pcount.textContent=res.playerCount||1;\n  // Add/update other players\n  if(res.players){\n    res.players.forEach(p=>{\n      if(p.email===currentUser.email)return;\n      if(!mpPlayers[p.email]){\n        const mesh=makeMpPlayerMesh(p.fname,0x4488ff);\n        mesh.position.set(p.x||0,p.y||1.7,p.z||0);\n        mpScene.add(mesh);\n        mpPlayers[p.email]={...p,mesh};\n        addMpChatMsg('\ud83d\udc4b '+p.fname+' joined!','#43c47a');\n      } else {\n        Object.assign(mpPlayers[p.email],p);\n      }\n    });\n  }\n  // Chat messages\n  if(res.chats){\n    res.chats.forEach(c=>{\n      if(c.email!==currentUser.email) addMpChatMsg(c.fname+': '+c.msg,'#fff');\n    });\n  }\n  // New blocks placed by others\n  if(res.blocks){\n    res.blocks.forEach(b=>{\n      const already=mpPlacedBlocks.find(pb=>pb.pos.x===b.x&&pb.pos.y===b.y&&pb.pos.z===b.z);\n      if(!already){\n        const blockDef=MP_BLOCK_TYPES.find(bt=>bt.id===b.blockType)||MP_BLOCK_TYPES[0];\n        const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:blockDef.color}));\n        mesh.position.set(b.x,b.y,b.z); mpScene.add(mesh);\n        mpBuildInteractables.push(mesh);\n        mpPlacedBlocks.push({mesh,type:b.blockType,pos:{x:b.x,y:b.y,z:b.z}});\n      }\n    });\n  }\n}\n\nfunction toggleMpPlayerList(){\n  const overlay=document.getElementById('mp-player-list-overlay');\n  if(!overlay)return;\n  const visible=overlay.style.display!=='none';\n  overlay.style.display=visible?'none':'block';\n  if(!visible){\n    const content=document.getElementById('mp-player-list-content');\n    if(content){\n      const players=[{email:currentUser.email,fname:currentUser.fname+' (you)',level:S.xpLevel||1},...Object.values(mpPlayers)];\n      content.innerHTML=players.map(p=>`<div class=\"lb-row\"><div class=\"lb-name\">${p.fname}</div><div class=\"lb-level\">Lv.${p.level||1}</div></div>`).join('');\n    }\n  }\n}\n\nfunction updateMpHpDisplay(){\n  const el=document.getElementById('mp-hp');\n  if(el)el.textContent=mpPlayerHp;\n}\n\nfunction leaveMultiplayer(){\n  clearInterval(mpPollInterval);\n  cancelAnimationFrame(mpAnimFrame);\n  document.removeEventListener('mousemove',onMpMouseMove);\n  document.removeEventListener('mousedown',onMpMouseDown);\n  document.removeEventListener('keydown',onMpKeyDown);\n  document.removeEventListener('keyup',onMpKeyUp);\n  if(document.exitPointerLock)document.exitPointerLock();\n  if(mpRenderer){mpRenderer.dispose();mpRenderer=null;}\n  sheetsCall('leaveServer',{serverId:mpServerId,email:currentUser.email}).catch(()=>{});\n  mpPlayers={};mpServerId=null;\n  showScreen('servers');\n}\n\nfunction updateMpHotbar(){\n  const tier=getToolTier(S.toolLevel&&S.toolLevel.sword||1);\n  const slot0=document.getElementById('slot-0');\n  if(slot0) slot0.textContent=tier.icon+'\u2694\ufe0f';\n}\n",
+      "path": "/tmp/mp_system.js"
+    },
+    "message": "Full multiplayer server system, test dummy, and building JS",
+    "integration_name": null,
+    "integration_icon_url": null,
+    "icon_name": "file",
+    "context": null,
+    "display_content": {
+      "type": "json_block",
+      "json_block": "{\"language\": \"javascript\", \"code\": \"
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+// SERVER BROWSER
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+function showServers(){
+  showScreen('servers');
+  refreshServers();
+}
+
+async function refreshServers(){
+  const loading = document.getElementById('server-loading');
+  const list = document.getElementById('server-list');
+  if(loading) loading.style.display = 'block';
+  if(list) list.style.display = 'none';
+  const res = await sheetsCall('getServers', {});
+  if(loading) loading.style.display = 'none';
+  if(list) list.style.display = 'block';
+  if(res.ok && res.servers && res.servers.length > 0){
+    list.innerHTML = '';
+    res.servers.forEach(s => {
+      const card = document.createElement('div');
+      card.className = 'server-card';
+      card.innerHTML = `
+        <div style=\"font-size:28px\">${s.type==='class'?'\\ud83c\\udf93':s.type==='private'?'\\ud83d\\udd12':'\\ud83c\\udf0d'}</div>
+        <div style=\"flex:1\">
+          <div class=\"server-name\">${s.name||'Unnamed Server'}</div>
+          <div class=\"server-info\">${s.playerCount||0}/${s.maxPlayers||10} players \\u00b7 ${s.type||'open'} \\u00b7 Created by ${s.hostName||'?'}</div>
+        </div>
+        <button class=\"server-join-btn\" onclick=\"joinServer('${s.id}','${s.type}','${s.name}')\">Join \\u2192</button>`;
+      list.appendChild(card);
+    });
+  } else {
+    if(list) list.innerHTML = '<div style=\"text-align:center;font-family:\\'Fredoka One\\',cursive;font-size:16px;color:rgba(255,255,255,.4);padding:30px\">No servers online right now.<br>Be the first to create one!</div>';
+  }
+}
+
+function createServer(){
+  const form = document.getElementById('create-server-form');
+  if(form) form.style.display = form.style.display==='none' ? 'block' : 'none';
+}
+
+async function submitCreateServer(){
+  const name = (document.getElementById('server-name-input')||{}).value.trim();
+  const type = (document.getElementById('server-type')||{}).value;
+  const maxP = parseInt((document.getElementById('server-max')||{}).value)||10;
+  if(!name){ toast('Enter a server name!'); return; }
+  if(!currentUser){ toast('Log in first!'); return; }
+  const res = await sheetsCall('createServer', {
+    name, type, maxPlayers: maxP,
+    hostEmail: currentUser.email, hostName: currentUser.fname
+  });
+  if(res.ok){
+    enterMultiplayer(res.serverId, name);
+  } else {
+    toast(res.error || 'Could not create server.');
+  }
+}
+
+async function joinServer(serverId, type, name){
+  if(!currentUser){ toast('Log in first!'); return; }
+  if(type === 'class'){
+    if(!S.classCode){ toast('You need to be in a class to join this server!'); return; }
+  }
+  const res = await sheetsCall('joinServer', {
+    serverId, email: currentUser.email, fname: currentUser.fname
+  });
+  if(res.ok){
+    enterMultiplayer(serverId, name);
+  } else {
+    toast(res.error || 'Could not join server.');
+  }
+}
+
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+// MULTIPLAYER WORLD ENGINE
+// \\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550\\u2550
+var mpRenderer=null, mpScene=null, mpCamera=null, mpAnimFrame=null;
+var mpKeys={}, mpYaw=0, mpPitch=0, mpPointerLocked=false;
+var mpMouseDx=0, mpMouseDy=0;
+var mpServerId=null, mpServerName='';
+var mpPlayers={}, mpMyPlayer=null;
+var mpBlocks=[], mpPlacedBlocks=[];
+var mpSelectedSlot=0;
+var mpPlayerHp=100, mpPlayerMaxHp=100;
+var mpPollInterval=null, mpChatOpen=false;
+var mpTestDummy=null, mpDummyHp=200, mpDummyMaxHp=200;
+var mpBuildMode=false;
+
+const MP_BLOCK_TYPES=[
+  {id:'stone',color:0x888888,label:'Stone'},
+  {id:'wood',color:0x8B4513,label:'Wood'},
+  {id:'dirt',color:0x7a5a40,label:'Dirt'},
+  {id:'glass',color:0xaaddff,label:'Glass',transparent:true},
+  {id:'gold',color:0xffd700,label:'Gold Block'},
+  {id:'diamond',color:0x00e5ff,label:'Diamond Block'},
+  {id:'fire',color:0xff4400,label:'Netherrack'},
+  {id:'ice',color:0xaaccff,label:'Ice Block'},
+  {id:'obsidian',color:0x1a0a2a,label:'Obsidian'},
+];
+const SLOT_ITEMS=['sword','pickaxe','axe','bow','stone','wood','dirt','diamond','fire'];
+
+function enterMultiplayer(serverId, serverName){
+  mpServerId = serverId;
+  mpServerName = serverName;
+  showScreen('multiplayer');
+  const nameEl = document.getElementById('mp-server-name-display');
+  if(nameEl) nameEl.textContent = '\\ud83c\\udf10 '+serverName;
+  requestAnimationFrame(()=>initMultiplayer());
+}
+
+function initMultiplayer(){
+  const canvas = document.getElementById('mp-canvas');
+  if(!canvas) return;
+  const W=window.innerWidth, H=window.innerHeight;
+  canvas.width=W; canvas.height=H;
+  if(mpRenderer){cancelAnimationFrame(mpAnimFrame);mpRenderer.dispose();}
+  mpKeys={}; mpYaw=0; mpPitch=0; mpPointerLocked=false;
+  mpMouseDx=0; mpMouseDy=0; mpPlacedBlocks=[]; mpSelectedSlot=0;
+  mpPlayerHp=100; mpPlayerMaxHp=100; mpDummyHp=200;
+
+  mpScene = new THREE.Scene();
+  mpScene.background = new THREE.Color(0x87ceeb);
+  mpScene.fog = new THREE.Fog(0x87ceeb, 30, 120);
+
+  mpCamera = new THREE.PerspectiveCamera(75, W/H, 0.05, 200);
+  mpCamera.position.set(0, 1.7, 10);
+
+  mpRenderer = new THREE.WebGLRenderer({canvas, antialias:true});
+  mpRenderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+  mpRenderer.setSize(W,H);
+  mpRenderer.shadowMap.enabled=true;
+
+  // Lighting
+  mpScene.add(new THREE.AmbientLight(0xfff8e8, 0.8));
+  const sun = new THREE.DirectionalLight(0xfffbe8, 1.0);
+  sun.position.set(50,100,50); sun.castShadow=true;
+  sun.shadow.mapSize.width=2048; sun.shadow.mapSize.height=2048;
+  mpScene.add(sun);
+
+  buildMpWorld();
+  buildTestDummy();
+  buildMpSwordModel();
+
+  // Controls
+  canvas.addEventListener('click', ()=>{if(!mpPointerLocked)canvas.requestPointerLock();});
+  document.addEventListener('pointerlockchange', ()=>{
+    mpPointerLocked = document.pointerLockElement===canvas;
+    const hint = document.getElementById('mp-hint');
+    if(hint) hint.style.opacity = mpPointerLocked?'0':'1';
+  });
+  document.addEventListener('mousemove', onMpMouseMove);
+  document.addEventListener('mousedown', onMpMouseDown);
+  document.addEventListener('keydown', onMpKeyDown);
+  document.addEventListener('keyup', onMpKeyUp);
+
+  // Poll server for other players every 2s
+  mpPollInterval = setInterval(pollMpServer, 2000);
+  updateMpHpDisplay();
+  updateMpHotbar();
+
+  let t=0;
+  function mpLoop(){
+    mpAnimFrame = requestAnimationFrame(mpLoop);
+    t+=0.016;
+    if(mpPointerLocked){
+      mpYaw -= mpMouseDx*0.002; mpPitch -= mpMouseDy*0.002;
+      mpPitch = Math.max(-Math.PI/2.2, Math.min(Math.PI/2.2, mpPitch));
+      mpMouseDx=0; mpMouseDy=0;
+      const qY=new THREE.Quaternion(); qY.setFromAxisAngle(new THREE.Vector3(0,1,0),mpYaw);
+      const qX=new THREE.Quaternion(); qX.setFromAxisAngle(new THREE.Vector3(1,0,0),mpPitch);
+      mpCamera.quaternion.copy(qY.multiply(qX));
+    }
+    // Movement
+    const fwd=new THREE.Vector3(), right=new THREE.Vector3();
+    mpCamera.getWorldDirection(fwd); fwd.y=0; fwd.normalize();
+    right.crossVectors(fwd, new THREE.Vector3(0,1,0));
+    const mv=new THREE.Vector3();
+    if(mpKeys['w']||mpKeys['arrowup']) mv.add(fwd);
+    if(mpKeys['s']||mpKeys['arrowdown']) mv.addScaledVector(fwd,-1);
+    if(mpKeys['a']||mpKeys['arrowleft']) mv.addScaledVector(right,-1);
+    if(mpKeys['d']||mpKeys['arrowright']) mv.add(right);
+    if(mv.length()>0){
+      mv.normalize().multiplyScalar(0.1);
+      const np = mpCamera.position.clone().add(mv);
+      np.x=Math.max(-60,Math.min(60,np.x));
+      np.z=Math.max(-60,Math.min(60,np.z));
+      mpCamera.position.copy(np);
+    }
+    // Gravity / jump
+    if(mpKeys['r']) mpCamera.position.y = Math.min(30, mpCamera.position.y+0.15);
+    else if(mpCamera.position.y > 1.7) mpCamera.position.y = Math.max(1.7, mpCamera.position.y-0.08);
+    else mpCamera.position.y=1.7;
+    // Animate dummy
+    if(mpTestDummy){
+      mpTestDummy.rotation.y = t*0.8;
+      mpTestDummy.position.y = 0.5 + Math.sin(t*1.5)*0.08;
+    }
+    // Update other player positions
+    updateMpPlayerMeshes(t);
+    mpRenderer.render(mpScene, mpCamera);
+  }
+  mpLoop();
+}
+
+function buildMpWorld(){
+  // Grass floor (big)
+  for(let x=-60;x<=60;x+=4)for(let z=-60;z<=60;z+=4){
+    const c=Math.random()<0.08?0x2a7a08:Math.random()<0.05?0x5a9a18:0x3a8a18;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(4,0.5,4),new THREE.MeshLambertMaterial({color:c}));
+    b.position.set(x,-0.25,z); b.receiveShadow=true; mpScene.add(b);
+  }
+  // Dirt layer below
+  for(let x=-60;x<=60;x+=4)for(let z=-60;z<=60;z+=4){
+    const b=new THREE.Mesh(new THREE.BoxGeometry(4,1,4),new THREE.MeshLambertMaterial({color:0x7a5a40}));
+    b.position.set(x,-1.0,z); mpScene.add(b);
+  }
+  // Central spawn platform
+  for(let x=-5;x<=5;x++)for(let z=-5;z<=5;z++){
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1,0.3,1),new THREE.MeshLambertMaterial({color:0x888888}));
+    b.position.set(x,0.15,z); b.castShadow=true; b.receiveShadow=true; mpScene.add(b);
+  }
+  // Trees scattered around
+  const treePositions=[[-15,0,-15],[15,0,-15],[-15,0,15],[15,0,15],[0,0,-20],[-25,0,0],[25,0,0],[0,0,25]];
+  treePositions.forEach(([x,y,z])=>buildMpTree(x,z));
+  // Water area
+  const water=new THREE.Mesh(new THREE.BoxGeometry(12,0.2,12),new THREE.MeshLambertMaterial({color:0x2288cc,transparent:true,opacity:0.75}));
+  water.position.set(-30,0,-30); mpScene.add(water);
+  // Mountain/hill
+  for(let y=0;y<5;y++){
+    const s=5-y;
+    for(let x=-s;x<=s;x++)for(let z=-s;z<=s;z++){
+      const b=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:y<2?0x888888:y<4?0x666666:0xffffff}));
+      b.position.set(30+x,y+0.5,-30+z); b.castShadow=true; mpScene.add(b);
+    }
+  }
+  // Clouds
+  for(let i=0;i<12;i++){
+    const cx=(Math.random()-0.5)*100, cy=20+Math.random()*15, cz=(Math.random()-0.5)*100;
+    const cl=new THREE.Mesh(new THREE.BoxGeometry(6+Math.random()*6,2,4),new THREE.MeshLambertMaterial({color:0xffffff,transparent:true,opacity:0.85}));
+    cl.position.set(cx,cy,cz); mpScene.add(cl);
+  }
+  // TEST DUMMY AREA \\u2014 marked with red carpet
+  for(let x=-2;x<=2;x++)for(let z=-2;z<=2;z++){
+    const b=new THREE.Mesh(new THREE.BoxGeometry(1,0.1,1),new THREE.MeshLambertMaterial({color:0xcc0000}));
+    b.position.set(20+x,0.05,0+z); mpScene.add(b);
+  }
+  // \"TRAINING\" sign
+  const sign=new THREE.Mesh(new THREE.BoxGeometry(4,0.8,0.1),new THREE.MeshLambertMaterial({color:0x8B4513}));
+  sign.position.set(20,2.5,-3); mpScene.add(sign);
+}
+
+function buildMpTree(x,z){
+  const trunkH = 3+Math.floor(Math.random()*2);
+  for(let y=0;y<trunkH;y++){
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.8,1,0.8),new THREE.MeshLambertMaterial({color:0x5a3a18}));
+    b.position.set(x,y+0.5,z); b.castShadow=true; mpScene.add(b);
+  }
+  const leavesS = 2.5+Math.random();
+  const lv=new THREE.Mesh(new THREE.BoxGeometry(leavesS,leavesS*0.7,leavesS),new THREE.MeshLambertMaterial({color:0x2a7a10}));
+  lv.position.set(x,trunkH+leavesS*0.35,z); lv.castShadow=true; mpScene.add(lv);
+}
+
+// \\u2500\\u2500 TEST DUMMY \\u2500\\u2500
+var mpDummyMesh=null, mpDummyHpBar=null, mpDummyHpFill=null;
+function buildTestDummy(){
+  if(mpDummyMesh){ mpScene.remove(mpDummyMesh); }
+  const hpRatio = mpDummyHp/mpDummyMaxHp;
+  const dark = 0.3+0.7*hpRatio;
+  function dc(c){ return new THREE.Color(c).multiplyScalar(dark).getHex(); }
+
+  const g=new THREE.Group();
+  // Body (wooden dummy / scarecrow look)
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.9,1.1,0.5),new THREE.MeshLambertMaterial({color:dc(0xc8a46e)}));
+  body.position.y=1.0; g.add(body);
+  // Target circles on body
+  const t1=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.05,16),new THREE.MeshBasicMaterial({color:0xcc0000}));
+  t1.rotation.x=Math.PI/2; t1.position.set(0,1.0,0.27); g.add(t1);
+  const t2=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.06,16),new THREE.MeshBasicMaterial({color:0xffffff}));
+  t2.rotation.x=Math.PI/2; t2.position.set(0,1.0,0.28); g.add(t2);
+  const t3=new THREE.Mesh(new THREE.CylinderGeometry(0.07,0.07,0.07,16),new THREE.MeshBasicMaterial({color:0xcc0000}));
+  t3.rotation.x=Math.PI/2; t3.position.set(0,1.0,0.29); g.add(t3);
+  // Head
+  const head=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.7,0.6),new THREE.MeshLambertMaterial({color:dc(0xd4a46e)}));
+  head.position.y=1.95; g.add(head);
+  // Hat
+  const hat=new THREE.Mesh(new THREE.BoxGeometry(0.85,0.12,0.85),new THREE.MeshLambertMaterial({color:0x2a1a00}));
+  hat.position.y=2.38; g.add(hat);
+  const hatTop=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.35,0.55),new THREE.MeshLambertMaterial({color:0x2a1a00}));
+  hatTop.position.y=2.55; g.add(hatTop);
+  // Eyes
+  [-0.16,0.16].forEach(ex=>{
+    const eye=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.08,0.05),new THREE.MeshBasicMaterial({color:hpRatio<0.3?0xff0000:0x000000}));
+    eye.position.set(ex,2.02,0.31); g.add(eye);
+  });
+  // Arms (horizontal stick arms)
+  [-0.65,0.65].forEach(ax=>{
+    const arm=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.16,0.16),new THREE.MeshLambertMaterial({color:dc(0x8B4513)}));
+    arm.position.set(ax,1.35,0); g.add(arm);
+  });
+  // Vertical post
+  const post=new THREE.Mesh(new THREE.BoxGeometry(0.14,3,0.14),new THREE.MeshLambertMaterial({color:0x6B3410}));
+  post.position.set(0,0,0); g.add(post);
+  // Cracks when damaged
+  if(hpRatio<0.6){
+    for(let i=0;i<4;i++){
+      const cr=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.3*(1-hpRatio)*2,0.02),new THREE.MeshBasicMaterial({color:0x000000}));
+      cr.position.set((Math.random()-0.5)*0.6,0.8+Math.random()*0.5,0.27);
+      cr.rotation.z=(Math.random()-0.5)*0.5; g.add(cr);
+    }
+  }
+  g.position.set(20,0,0);
+  mpScene.add(g);
+  mpDummyMesh=g;
+  // HP bar
+  if(mpDummyHpBar) mpScene.remove(mpDummyHpBar);
+  if(mpDummyHpFill) mpScene.remove(mpDummyHpFill);
+  mpDummyHpBar=new THREE.Mesh(new THREE.PlaneGeometry(1.8,0.22),new THREE.MeshBasicMaterial({color:0x330000,side:THREE.DoubleSide}));
+  mpDummyHpFill=new THREE.Mesh(new THREE.PlaneGeometry(1.78,0.18),new THREE.MeshBasicMaterial({color:hpRatio>0.5?0x44cc00:hpRatio>0.25?0xffaa00:0xff2200,side:THREE.DoubleSide}));
+  mpDummyHpBar.position.set(20,3.2,0); mpDummyHpFill.position.set(20-(1.78*(1-hpRatio)/2),3.22,0.01);
+  mpDummyHpFill.scale.x=Math.max(0.01,hpRatio);
+  mpScene.add(mpDummyHpBar); mpScene.add(mpDummyHpFill);
+}
+
+function hitDummy(dmg){
+  mpDummyHp = Math.max(0,mpDummyHp-dmg);
+  showWorldDmg('-'+dmg+' DMG!','#ff4444');
+  // Show damage on dummy
+  const pct = Math.round((1-mpDummyHp/mpDummyMaxHp)*100);
+  toast('\\ud83c\\udfaf Hit dummy! -'+dmg+' damage ('+mpDummyHp+'/'+mpDummyMaxHp+' HP)','gold-toast');
+  buildTestDummy(); // Rebuild to show damage state
+  if(mpDummyHp<=0){
+    toast('\\ud83d\\udca5 Dummy destroyed! Great damage! Respawning...','gold-toast');
+    particles('\\ud83d\\udca5');
+    setTimeout(()=>{ mpDummyHp=mpDummyMaxHp; buildTestDummy(); },3000);
+  }
+}
+
+// \\u2500\\u2500 MP SWORD MODEL \\u2500\\u2500
+var mpSwordMesh=null, mpSwordSwingT=0, mpSwordSwinging=false;
+function buildMpSwordModel(){
+  if(mpSwordMesh){ mpCamera.remove(mpSwordMesh); mpSwordMesh=null; }
+  if(SLOT_ITEMS[mpSelectedSlot]!=='sword') return;
+  const g=new THREE.Group();
+  const sl=S.toolLevel&&S.toolLevel.sword||1;
+  const tier=getToolTier(sl);
+  const bc=tier.color;
+  const bMat=new THREE.MeshLambertMaterial({color:bc,emissive:new THREE.Color(tier.emissive)});
+  // Blade
+  const blade1=new THREE.Mesh(new THREE.BoxGeometry(0.18,0.32,0.05),bMat);
+  blade1.position.set(0,0.18,0); g.add(blade1);
+  const blade2=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.28,0.05),bMat.clone());
+  blade2.position.set(0,-0.10,0); g.add(blade2);
+  const tip=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.10,0.05),bMat.clone());
+  tip.position.set(0,-0.28,0); g.add(tip);
+  const guardMat=new THREE.MeshLambertMaterial({color:tier.tier>=4?bc:0x5a3a10});
+  const guard=new THREE.Mesh(new THREE.BoxGeometry(0.28,0.08,0.06),guardMat);
+  guard.position.set(0,-0.32,0); g.add(guard);
+  const handle=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.24,0.06),new THREE.MeshLambertMaterial({color:0x3a1a00}));
+  handle.position.set(0,-0.47,0); g.add(handle);
+  const pommel=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.08,0.07),guardMat.clone());
+  pommel.position.set(0,-0.60,0); g.add(pommel);
+  if(tier.tier>=5){const glow=new THREE.PointLight(bc,1.2,2.0);glow.position.set(0,0.2,0.1);g.add(glow);}
+  g.position.set(0.32,-0.30,-0.45); g.rotation.set(0.15,0.25,-0.05);
+  mpCamera.add(g); mpSwordMesh=g; mpScene.add(mpCamera);
+}
+
+// \\u2500\\u2500 BUILDING SYSTEM \\u2500\\u2500
+var mpRaycaster=new THREE.Raycaster();
+var mpBuildInteractables=[];
+
+function onMpMouseDown(e){
+  if(!mpPointerLocked) return;
+  if(e.button===0) onMpClickLeft();
+  if(e.button===2){ e.preventDefault(); onMpClickRight(); }
+}
+function onMpClickLeft(){
+  const slot=SLOT_ITEMS[mpSelectedSlot];
+  if(slot==='sword') mpSwingSword();
+  else if(slot==='pickaxe'||slot==='axe') mpMineBlock();
+  else mpPlaceBlock(slot); // place block
+}
+function onMpClickRight(){
+  mpMineBlock(); // right click = break
+}
+
+function mpSwingSword(){
+  if(mpSwordSwinging) return;
+  mpSwordSwinging=true; mpSwordSwingT=0;
+  const sl=S.toolLevel&&S.toolLevel.sword||1;
+  const tier=getToolTier(sl);
+  const dmg=Math.round((10+sl*3)*tier.attackMult*(0.85+Math.random()*0.3));
+  mpRaycaster.setFromCamera({x:0,y:0},mpCamera);
+  const hits=mpRaycaster.intersectObjects([mpDummyMesh].filter(Boolean),true);
+  if(hits.length>0&&hits[0].distance<4){
+    hitDummy(dmg);
+  } else {
+    // Check other players... (placeholder for real multiplayer)
+    showWorldDmg('miss','rgba(255,255,255,.4)');
+  }
+  if(mpSwordMesh){
+    let sw=0;
+    const iv=setInterval(()=>{
+      sw+=0.2; mpSwordMesh.rotation.x=0.15-Math.sin(sw)*0.9;
+      mpSwordMesh.rotation.z=-0.05+Math.sin(sw)*0.5;
+      if(sw>Math.PI){clearInterval(iv);mpSwordMesh.rotation.x=0.15;mpSwordMesh.rotation.z=-0.05;mpSwordSwinging=false;}
+    },16);
+  }
+}
+
+function mpMineBlock(){
+  mpRaycaster.setFromCamera({x:0,y:0},mpCamera);
+  const hits=mpRaycaster.intersectObjects(mpBuildInteractables,false);
+  if(hits.length>0&&hits[0].distance<6){
+    const mesh=hits[0].object;
+    mpScene.remove(mesh);
+    mpBuildInteractables=mpBuildInteractables.filter(m=>m!==mesh);
+    mpPlacedBlocks=mpPlacedBlocks.filter(b=>b.mesh!==mesh);
+    particles('\\u26cf\\ufe0f');
+    toast('Block removed!','green-toast');
+  }
+}
+
+function mpPlaceBlock(type){
+  const blockDef=MP_BLOCK_TYPES.find(b=>b.id===type)||MP_BLOCK_TYPES[0];
+  mpRaycaster.setFromCamera({x:0,y:0},mpCamera);
+  const allMeshes=[...mpBuildInteractables];
+  const hits=mpRaycaster.intersectObjects(allMeshes,false);
+  let placePos;
+  if(hits.length>0&&hits[0].distance<6){
+    const hit=hits[0];
+    const normal=hit.face.normal.clone();
+    placePos=hit.point.clone().add(normal.multiplyScalar(0.51));
+    placePos.x=Math.round(placePos.x);
+    placePos.y=Math.round(placePos.y);
+    placePos.z=Math.round(placePos.z);
+  } else {
+    // Place at look direction
+    const dir=new THREE.Vector3();
+    mpCamera.getWorldDirection(dir);
+    placePos=mpCamera.position.clone().add(dir.multiplyScalar(3));
+    placePos.x=Math.round(placePos.x);
+    placePos.y=Math.max(1,Math.round(placePos.y));
+    placePos.z=Math.round(placePos.z);
+  }
+  const mat=new THREE.MeshLambertMaterial({color:blockDef.color,transparent:!!blockDef.transparent,opacity:blockDef.transparent?0.6:1});
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mat);
+  mesh.position.copy(placePos);
+  mesh.castShadow=true; mesh.receiveShadow=true;
+  // Edges
+  const edges=new THREE.EdgesGeometry(mesh.geometry);
+  const lines=new THREE.LineSegments(edges,new THREE.LineBasicMaterial({color:0x000000,opacity:0.3,transparent:true}));
+  mesh.add(lines);
+  mpScene.add(mesh);
+  mpBuildInteractables.push(mesh);
+  mpPlacedBlocks.push({mesh, type, pos:{x:placePos.x,y:placePos.y,z:placePos.z}});
+  particles('\\ud83e\\uddf1');
+  // Sync to server (best-effort)
+  sheetsCall('placeBlock',{serverId:mpServerId,email:currentUser.email,blockType:type,x:placePos.x,y:placePos.y,z:placePos.z}).catch(()=>{});
+}
+
+function selectSlot(i){
+  mpSelectedSlot=i;
+  document.querySelectorAll('.mp-slot').forEach((s,idx)=>s.classList.toggle('active',idx===i));
+  buildMpSwordModel();
+  const hint=document.getElementById('mp-interact-prompt');
+  if(hint){
+    const slot=SLOT_ITEMS[i];
+    if(slot==='sword') hint.textContent='\\u2694\\ufe0f Sword \\u2014 Left-click to attack \\u00b7 Find the test dummy at x:20!';
+    else if(slot==='pickaxe'||slot==='axe') hint.textContent='\\u26cf\\ufe0f Tool \\u2014 Right-click to break blocks';
+    else hint.textContent='\\ud83e\\uddf1 '+slot+' \\u2014 Left-click to place block';
+    hint.style.display='block';
+    setTimeout(()=>{if(hint)hint.style.display='none';},3000);
+  }
+}
+
+function onMpMouseMove(e){if(!mpPointerLocked)return;mpMouseDx+=e.movementX;mpMouseDy+=e.movementY;}
+function onMpKeyDown(e){
+  mpKeys[e.key.toLowerCase()]=true;
+  if(e.key==='Tab'){e.preventDefault();toggleMpPlayerList();}
+  if(e.key==='t'||e.key==='T'){e.preventDefault();openMpChat();}
+  if(e.key==='Enter'&&mpChatOpen)sendMpChat();
+  if(e.key==='Escape'&&mpChatOpen)closeMpChat();
+  if(e.key>='1'&&e.key<='9') selectSlot(parseInt(e.key)-1);
+}
+function onMpKeyUp(e){mpKeys[e.key.toLowerCase()]=false;}
+
+// \\u2500\\u2500 CHAT \\u2500\\u2500
+function openMpChat(){
+  mpChatOpen=true;
+  const row=document.getElementById('mp-chat-input-row');
+  if(row){row.style.display='block';document.getElementById('mp-chat-input').focus();}
+  if(document.exitPointerLock)document.exitPointerLock();
+}
+function closeMpChat(){
+  mpChatOpen=false;
+  const row=document.getElementById('mp-chat-input-row');
+  if(row)row.style.display='none';
+}
+async function sendMpChat(){
+  const inp=document.getElementById('mp-chat-input');
+  if(!inp||!inp.value.trim())return;
+  const msg=inp.value.trim().substring(0,100);
+  inp.value='';
+  closeMpChat();
+  addMpChatMsg(currentUser.fname+': '+msg,'#fff');
+  await sheetsCall('mpChat',{serverId:mpServerId,email:currentUser.email,fname:currentUser.fname,msg});
+}
+function addMpChatMsg(text,color){
+  const msgs=document.getElementById('mp-chat-messages');
+  if(!msgs)return;
+  const div=document.createElement('div');
+  div.className='mp-chat-msg';
+  div.style.color=color||'#fff';
+  div.textContent=text;
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+  // Remove old messages
+  while(msgs.children.length>20)msgs.removeChild(msgs.firstChild);
+  setTimeout(()=>{div.style.opacity='0';div.style.transition='opacity 1s';setTimeout(()=>div.remove(),1000);},8000);
+}
+
+// \\u2500\\u2500 PLAYER MESHES (other players) \\u2500\\u2500
+function updateMpPlayerMeshes(t){
+  // Update existing player meshes
+  Object.values(mpPlayers).forEach(p=>{
+    if(p.mesh) p.mesh.position.lerp(new THREE.THREE.Vector3(p.x,p.y,p.z),0.1);
+  });
+}
+
+function makeMpPlayerMesh(fname,color){
+  const g=new THREE.Group();
+  const mat=new THREE.MeshLambertMaterial({color:color||0x4488ff});
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.8,0.4),mat);
+  body.position.y=1.0; g.add(body);
+  const head=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),mat.clone());
+  head.position.y=1.68; g.add(head);
+  // Name tag
+  return g;
+}
+
+async function pollMpServer(){
+  if(!mpServerId||!mpScene)return;
+  const res=await sheetsCall('pollServer',{serverId:mpServerId,email:currentUser.email,
+    x:Math.round(mpCamera.position.x),y:Math.round(mpCamera.position.y),z:Math.round(mpCamera.position.z)}).catch(()=>null);
+  if(!res||!res.ok)return;
+  // Update player count
+  const pcount=document.getElementById('mp-pcount');
+  if(pcount) pcount.textContent=res.playerCount||1;
+  // Add/update other players
+  if(res.players){
+    res.players.forEach(p=>{
+      if(p.email===currentUser.email)return;
+      if(!mpPlayers[p.email]){
+        const mesh=makeMpPlayerMesh(p.fname,0x4488ff);
+        mesh.position.set(p.x||0,p.y||1.7,p.z||0);
+        mpScene.add(mesh);
+        mpPlayers[p.email]={...p,mesh};
+        addMpChatMsg('\\ud83d\\udc4b '+p.fname+' joined!','#43c47a');
+      } else {
+        Object.assign(mpPlayers[p.email],p);
+      }
+    });
+  }
+  // Chat messages
+  if(res.chats){
+    res.chats.forEach(c=>{
+      if(c.email!==currentUser.email) addMpChatMsg(c.fname+': '+c.msg,'#fff');
+    });
+  }
+  // New blocks placed by others
+  if(res.blocks){
+    res.blocks.forEach(b=>{
+      const already=mpPlacedBlocks.find(pb=>pb.pos.x===b.x&&pb.pos.y===b.y&&pb.pos.z===b.z);
+      if(!already){
+        const blockDef=MP_BLOCK_TYPES.find(bt=>bt.id===b.blockType)||MP_BLOCK_TYPES[0];
+        const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshLambertMaterial({color:blockDef.color}));
+        mesh.position.set(b.x,b.y,b.z); mpScene.add(mesh);
+        mpBuildInteractables.push(mesh);
+        mpPlacedBlocks.push({mesh,type:b.blockType,pos:{x:b.x,y:b.y,z:b.z}});
+      }
+    });
+  }
+}
+
+function toggleMpPlayerList(){
+  const overlay=document.getElementById('mp-player-list-overlay');
+  if(!overlay)return;
+  const visible=overlay.style.display!=='none';
+  overlay.style.display=visible?'none':'block';
+  if(!visible){
+    const content=document.getElementById('mp-player-list-content');
+    if(content){
+      const players=[{email:currentUser.email,fname:currentUser.fname+' (you)',level:S.xpLevel||1},...Object.values(mpPlayers)];
+      content.innerHTML=players.map(p=>`<div class=\"lb-row\"><div class=\"lb-name\">${p.fname}</div><div class=\"lb-level\">Lv.${p.level||1}</div></div>`).join('');
+    }
+  }
+}
+
+function updateMpHpDisplay(){
+  const el=document.getElementById('mp-hp');
+  if(el)el.textContent=mpPlayerHp;
+}
+
+function leaveMultiplayer(){
+  clearInterval(mpPollInterval);
+  cancelAnimationFrame(mpAnimFrame);
+  document.removeEventListener('mousemove',onMpMouseMove);
+  document.removeEventListener('mousedown',onMpMouseDown);
+  document.removeEventListener('keydown',onMpKeyDown);
+  document.removeEventListener('keyup',onMpKeyUp);
+  if(document.exitPointerLock)document.exitPointerLock();
+  if(mpRenderer){mpRenderer.dispose();mpRenderer=null;}
+  sheetsCall('leaveServer',{serverId:mpServerId,email:currentUser.email}).catch(()=>{});
+  mpPlayers={};mpServerId=null;
+  showScreen('servers');
+}
+
+function updateMpHotbar(){
+  const tier=getToolTier(S.toolLevel&&S.toolLevel.sword||1);
+  const slot0=document.getElementById('slot-0');
+  if(slot0) slot0.textContent=tier.icon+'\\u2694\\ufe0f';
+}
+\", \"filename\": \"/tmp/mp_system.js\"}"
+    },
+    "approval_options": null,
+    "approval_key": null,
+    "approval_key_legacy": null,
+    "is_mcp_app": null,
+    "mcp_server_url": null
+  },
+
+>
