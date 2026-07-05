@@ -598,7 +598,7 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%">
         <button onclick="gateAction('pvp','⚔️ PvP Battle','Fight a friend in real-time 3D!')" class="title-btn-sec" style="border-color:rgba(244,67,54,.5);color:#f44336;">⚔️ PvP</button>
         <button onclick="gateAction('duel','⚔️ Direct Duel','Answer questions faster than your friend!')" class="title-btn-sec" style="border-color:rgba(255,100,0,.5);color:#ff6400;">🥊 Duel</button>
-        <button onclick="gateAction('servers','🌐 Servers','Play with classmates in a shared world!')" class="title-btn-sec" style="border-color:rgba(0,229,255,.4);color:#00e5ff;">🌐 Servers</button>
+        
       </div>
       <!-- ROW 3: other -->
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%">
@@ -1124,6 +1124,21 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
 </div>
 
 
+
+<!-- ═══ MATERIAL CRAFTING ═══ -->
+<div class="screen" id="screen-crafting" style="background:linear-gradient(135deg,#0a1520,#1a0a3a)">
+  <div style="position:fixed;inset:0;overflow-y:auto;padding:60px 16px 24px">
+    <div style="max-width:760px;margin:0 auto">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+        <button onclick="showScreen('lab');requestAnimationFrame(()=>initLab())" style="font-family:Fredoka One,cursive;font-size:14px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:12px;padding:8px 16px;color:#fff;cursor:pointer">← Back</button>
+        <div style="font-family:Fredoka One,cursive;font-size:32px;color:#43c47a">🧪 Material Crafting</div>
+      </div>
+      <div style="font-size:13px;color:rgba(255,255,255,.4);margin-bottom:16px">Use materials collected from mining, mobs, and chopping trees to craft powerful items</div>
+      <div id="craft-grid"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ LEADERBOARD ═══ -->
 <div class="screen" id="screen-leaderboard" style="background:linear-gradient(135deg,#0a0520,#1a0a4a)">
   <div style="display:flex;flex-direction:column;align-items:center;gap:16px;padding:70px 20px 20px;width:100%;max-width:700px;margin:0 auto;overflow-y:auto;max-height:100vh">
@@ -1248,7 +1263,10 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
       <div id="assignments-content" style="font-size:14px;color:rgba(255,255,255,.5)">Join a class to see your assignments!</div>
     </div>
 
-    <button onclick="closeClassPanel()" class="auth-btn secondary" style="font-size:14px;padding:10px 24px">← Back to Lab</button>
+    <!-- Class leaderboard -->
+    <div id="class-lb" style="width:100%;background:rgba(255,255,255,.05);border:2px solid rgba(255,184,0,.3);border-radius:18px;padding:16px"></div>
+
+    <button onclick="showScreen('title')" class="auth-btn secondary" style="font-size:14px;padding:10px 24px">← Back</button>
   </div>
 </div>
 
@@ -3145,8 +3163,9 @@ function initWorld(worldId){
   currentWorld=worldId;
   usingRanged=false; // always start with sword when entering any world
   const canvas=document.getElementById('world-canvas');
-  const W=window.innerWidth,H=window.innerHeight-54;
+  const W=window.innerWidth,H=window.innerHeight;
   canvas.width=W;canvas.height=H;
+  canvas.style.width=W+'px';canvas.style.height=H+'px';
   if(worldRenderer){cancelAnimationFrame(worldAnimFrame);worldRenderer.dispose();}
   worldKeys={};worldYaw=0;worldPitch=0;worldPointerLocked=false;
   worldMouseDx=0;worldMouseDy=0;worldInteractables=[];lookedAtObj=null;
@@ -3483,7 +3502,7 @@ var arenaCooldown=0,arenaOver=false,arenaEnemyTimer=null;
 // Mob wave level scales with player's sword level
 function getMobScale(wave){
   const sl=S.toolLevel&&S.toolLevel.sword||1;
-  return 1 + (wave-1)*0.12 + (sl-1)*0.18; // mobs get harder as sword improves
+  return 1 + (wave-1)*0.08; // gentler HP scaling
 }
 
 function buildArena(){
@@ -3834,7 +3853,7 @@ function swingSword(){
   const sl=S.toolLevel&&S.toolLevel.sword||0;
   if(!sl){toast('No sword! Craft one first.','');return;}
   const tier=getToolTier(sl);
-  arenaCooldown=0.55*tier.speedMult;
+  arenaCooldown=0.35*tier.speedMult; // faster base attack
   swordSwinging=true;swordSwingT=0;
 
   // METHOD 1: Raycast (recursive=true to catch all child meshes)
@@ -3856,7 +3875,7 @@ function swingSword(){
       const dx=mob.mesh.position.x-cam.x;
       const dz=mob.mesh.position.z-cam.z;
       const dist=Math.sqrt(dx*dx+dz*dz);
-      if(dist>5.5)return; // too far even for big swing
+      if(dist>7.0)return; // melee range
       // Check if mob is roughly in front of player
       const toMob=new THREE.Vector3(dx,0,dz).normalize();
       const dot=fwd.dot(toMob);
@@ -3866,7 +3885,7 @@ function swingSword(){
 
   if(hitMobRef){
     const crit=Math.random()<0.1+sl*0.03;
-    const baseDmg=Math.round((10+sl*3)*tier.attackMult*(crit?2:1)*(0.85+Math.random()*0.3));
+    const baseDmg=Math.round((18+sl*5)*tier.attackMult*(crit?2:1)*(0.85+Math.random()*0.3));
     hitMob(hitMobRef,baseDmg,crit);
   } else {
     showWorldDmg('miss','rgba(255,255,255,0.35)');
@@ -3940,151 +3959,168 @@ const ORE_TYPES=[
 var mine3dBlocks=[],mineHoldInterval=null,mineBreakProgress=0,mineHoldTarget=null;
 
 function buildMine3D(){
-  worldScene.background=new THREE.Color(0x2a1a06);
-  worldScene.fog=new THREE.Fog(0x1a0e04,14,42);
-  // BRIGHT lighting
-  worldScene.add(new THREE.AmbientLight(0xffd080,1.4));
-  for(let x=-12;x<=12;x+=5)for(let z=-12;z<=12;z+=5){
-    const pl=new THREE.PointLight(0xffcc44,2.2,14);pl.position.set(x,4.2,z);worldScene.add(pl);
-    const gs=new THREE.Mesh(new THREE.BoxGeometry(0.45,0.25,0.45),new THREE.MeshBasicMaterial({color:0xffee88}));gs.position.set(x,4.9,z);worldScene.add(gs);
+  worldScene.background=new THREE.Color(0x0a0806);
+  worldScene.fog=new THREE.Fog(0x0a0806,12,36);
+  worldScene.add(new THREE.AmbientLight(0x554433,0.6));
+
+  // Torches on walls - warm orange glow
+  function mineTorch(x,y,z,wallDir){
+    const stick=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.3,0.08),new THREE.MeshLambertMaterial({color:0x5a3010}));
+    stick.position.set(x,y,z);worldScene.add(stick);
+    const flame=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.14,0.12),new THREE.MeshBasicMaterial({color:0xff9900}));
+    flame.position.set(x,y+0.22,z);worldScene.add(flame);
+    const inner=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.09,0.07),new THREE.MeshBasicMaterial({color:0xffdd66}));
+    inner.position.set(x,y+0.24,z);worldScene.add(inner);
+    const pl=new THREE.PointLight(0xff8822,2.8,9);pl.position.set(x,y+0.4,z);worldScene.add(pl);
   }
-  function mineTorch(x,y,z){
-    wBox(0.14,0.28,0.14,wMat(0x5a3010),x,y,z,false);
-    const f=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.11,0.1),new THREE.MeshBasicMaterial({color:0xff8800}));
-    f.position.set(x,y+0.17,z);worldScene.add(f);
-    const pl=new THREE.PointLight(0xff8800,3.0,8);pl.position.set(x,y+0.3,z);worldScene.add(pl);
+
+  // Stone color palette for varied walls
+  const stoneColors=[0x888880,0x7a7870,0x8a8878,0x6e6e66,0x969690,0x7c7c74];
+  const dirtColors=[0x7a5a30,0x6a4e28,0x8a6a38];
+  const gravelColors=[0x888888,0x808080,0x787878];
+
+  function rStone(){return stoneColors[Math.floor(Math.random()*stoneColors.length)];}
+  function rDirt(){return dirtColors[Math.floor(Math.random()*dirtColors.length)];}
+
+  // Helper
+  function blk(w,h,d,color,x,y,z,shadow){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color}));
+    m.position.set(x,y,z);m.receiveShadow=shadow;m.castShadow=shadow;worldScene.add(m);return m;
   }
-  [[-14,2,0],[14,2,0],[0,2,-14],[0,2,14],[-10,2,-10],[10,2,10],[-10,2,10],[10,2,-10],[-7,2,0],[7,2,0],[0,2,-7],[0,2,7]].forEach(([x,y,z])=>mineTorch(x,y,z));
-  for(let x=-15;x<=15;x+=1)for(let z=-15;z<=15;z+=1){const h=Math.random()*0.3;wBox(1,0.28+h,1,wMat(Math.random()<0.15?0x3a2a18:0x2a1a10),x,5.15,z,false);}
-  for(let i=0;i<45;i++){const h=0.4+Math.random()*1.8;const cone=new THREE.Mesh(new THREE.ConeGeometry(0.07+Math.random()*0.12,h,6),wMat(0x2a1a10));cone.position.set((Math.random()-.5)*26,(5-h/2),(Math.random()-.5)*26);cone.rotation.x=Math.PI;worldScene.add(cone);}
-  for(let z=-15;z<=15;z++)for(let y=0;y<5;y++){const c=Math.random()<0.2?0x2a1a10:0x201408;wBox(0.5,1,1,wMat(c),-15,y+0.5,z,false);wBox(0.5,1,1,wMat(c),15,y+0.5,z,false);}
-  for(let x=-15;x<=15;x++)for(let y=0;y<5;y++){const c=Math.random()<0.2?0x2a1a10:0x201408;wBox(1,1,0.5,wMat(c),x,y+0.5,-15,false);wBox(1,1,0.5,wMat(c),x,y+0.5,15,false);}
-  mine3dBlocks=[];worldInteractables=[];
-  const tw=ORE_TYPES.reduce((s,o)=>s+o.weight,0);
-  function randO(){let r=Math.random()*tw;for(const o of ORE_TYPES){r-=o.weight;if(r<=0)return{...o};}return{...ORE_TYPES[0]};}
-  for(let x=-14;x<=14;x+=1)for(let z=-14;z<=14;z+=1){
-    const ore=randO();
-    const mat=new THREE.MeshLambertMaterial({color:ore.color});
-    const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,0.8,1),mat);
-    mesh.position.set(x,-0.4,z);worldScene.add(mesh);
-    if(ore.id!=='stone'&&ore.id!=='dirt'){for(let i=0;i<4;i++){const d=new THREE.Mesh(new THREE.BoxGeometry(0.11,0.04,0.11),new THREE.MeshBasicMaterial({color:ore.dark}));d.position.set((Math.random()-.5)*0.6,0.41,(Math.random()-.5)*0.6);mesh.add(d);}}
-    wEdge(mesh,0x000000,0.13);
-    const id=mine3dBlocks.length;mesh.userData={type:'ore',oreId:id,label:ore.label,oreType:ore};
-    worldInteractables.push(mesh);mine3dBlocks.push({mesh,oreType:ore,hp:ore.hp,maxHp:ore.hp,mined:false,id,crackMesh:null});
+
+  // FLOOR - irregular stone with some dirt patches and gravel
+  for(let x=-16;x<=16;x++)for(let z=-16;z<=16;z++){
+    const r=Math.random();
+    let c=rStone();
+    if(r<0.12)c=rDirt();
+    else if(r<0.18)c=0x888888; // gravel
+    const h=0.6+Math.random()*0.4;
+    blk(1,h,1,c,x,-h/2,z,true);
   }
-  // Ceiling ores
-  for(let x=-12;x<=12;x+=2)for(let z=-12;z<=12;z+=2){
-    if(Math.random()<0.35){
-      const ore=randO();const mat=new THREE.MeshLambertMaterial({color:ore.color});
-      const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,0.6,1),mat);mesh.position.set(x,4.7,z);worldScene.add(mesh);
-      wEdge(mesh,0x000000,0.12);const id=mine3dBlocks.length;
-      mesh.userData={type:'ore',oreId:id,label:ore.label,oreType:ore};worldInteractables.push(mesh);
-      mine3dBlocks.push({mesh,oreType:ore,hp:ore.hp,maxHp:ore.hp,mined:false,id,crackMesh:null});
+
+  // CEILING - stalactites (cones) + varied stone
+  for(let x=-15;x<=15;x+=1)for(let z=-15;z<=15;z+=1){
+    blk(1,0.5+Math.random()*0.5,1,rStone(),x,5.3+Math.random()*0.2,z,false);
+  }
+  // Stalactites
+  for(let i=0;i<80;i++){
+    const sx=(Math.random()-0.5)*28;const sz=(Math.random()-0.5)*28;
+    const sh=0.5+Math.random()*1.8;
+    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.08+Math.random()*0.14,sh,5),
+      new THREE.MeshLambertMaterial({color:rStone()}));
+    cone.position.set(sx,5.0-sh/2,sz);cone.rotation.x=Math.PI;worldScene.add(cone);
+  }
+
+  // WALLS - varied height giving cave feel
+  function caveWall(x1,z1,x2,z2){
+    const dx=x2-x1,dz=z2-z1,len=Math.sqrt(dx*dx+dz*dz);
+    for(let i=0;i<=len;i+=1){
+      const fx=x1+(dx/len)*i,fz=z1+(dz/len)*i;
+      const wallH=3+Math.floor(Math.random()*2);
+      for(let y=0;y<wallH;y++){
+        blk(1,1,1,rStone(),fx,y+0.5,fz,false);
+      }
+      // Dirt layer at bottom sometimes
+      if(Math.random()<0.3) blk(1,1,1,rDirt(),fx,-0.5,fz,false);
     }
   }
-  worldCamera.position.set(0,1.7,12);
-  document.getElementById('mine-3d-hud').style.display='flex';updateMine3dHud();
-}
+  caveWall(-16,16,16,16);caveWall(-16,-16,16,-16);
+  caveWall(-16,-16,-16,16);caveWall(16,-16,16,16);
 
-function addCracks(block, progress){
-  // Remove old cracks
-  if(block.crackMesh){block.mesh.remove(block.crackMesh);block.crackMesh=null;}
-  if(progress<0.2)return;
-  // Add crack lines
-  const cg=new THREE.Group();
-  const numCracks=Math.floor(progress*6)+1;
-  for(let i=0;i<numCracks;i++){
-    const dir=Math.random()<0.5;
-    const cl=new THREE.Mesh(
-      new THREE.BoxGeometry(dir?0.012:0.3+Math.random()*0.4,dir?0.3+Math.random()*0.4:0.012,0.012),
-      new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:0.7})
-    );
-    cl.position.set((Math.random()-0.5)*0.6,(Math.random()-0.5)*0.5,0.41+i*0.001);
-    cl.rotation.z=(Math.random()-0.5)*0.4;cg.add(cl);
+  // Interior cave pillars and formations
+  const pillarPositions=[[-6,-6],[6,-6],[-6,6],[6,6],[0,-8],[0,8],[-10,0],[10,0],[-4,2],[4,-3]];
+  pillarPositions.forEach(([px,pz])=>{
+    const h=2+Math.floor(Math.random()*3);
+    for(let y=0;y<h;y++){
+      blk(1.2,1,1.2,rStone(),px,y+0.5,pz,true);
+    }
+    // Stalagmite on top
+    const sc=new THREE.Mesh(new THREE.ConeGeometry(0.3+Math.random()*0.2,0.8+Math.random(),5),
+      new THREE.MeshLambertMaterial({color:rStone()}));
+    sc.position.set(px,h+0.9,pz);worldScene.add(sc);
+  });
+
+  // Torches throughout cave
+  [[-14,2,0],[14,2,0],[0,2,-14],[0,2,14],
+   [-8,2,-8],[8,2,-8],[-8,2,8],[8,2,8],
+   [-4,2,0],[4,2,0],[0,2,-5],[0,2,5],
+   [-12,2,6],[-12,2,-6],[12,2,6],[12,2,-6]
+  ].forEach(([x,y,z])=>mineTorch(x,y,z));
+
+  // LAVA pools (decorative - static orange glowing floors)
+  [[4,5],[-5,9],[8,-7],[-9,-4]].forEach(([lx,lz])=>{
+    if(isNaN(lx))return;
+    const lavaMat=new THREE.MeshBasicMaterial({color:0xff5500});
+    for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+      const lava=new THREE.Mesh(new THREE.BoxGeometry(1,0.15,1),lavaMat);
+      lava.position.set(lx+dx,-0.02,lz+dz);worldScene.add(lava);
+    }
+    const lavaLight=new THREE.PointLight(0xff4400,3.5,8);lavaLight.position.set(lx,0.5,lz);worldScene.add(lavaLight);
+  });
+
+  // MINEABLE ORE BLOCKS in walls and floor
+  mine3dBlocks=[];worldInteractables=[];
+  const tw=ORE_TYPES.reduce((s,o)=>s+o.weight,0);
+  function randOre(){let r=Math.random()*tw;for(const o of ORE_TYPES){r-=o.weight;if(r<=0)return{...o};}return{...ORE_TYPES[0]};}
+
+  // Floor ore veins - ore blocks embedded in floor
+  for(let x=-14;x<=14;x+=1)for(let z=-14;z<=14;z+=1){
+    const ore=randOre();
+    const mat=new THREE.MeshLambertMaterial({color:ore.color});
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,0.85,1),mat);
+    mesh.position.set(x,-0.42,z);worldScene.add(mesh);
+    // Add ore sparkle dots on top for non-stone ores
+    if(ore.id!=='stone'&&ore.id!=='dirt'){
+      for(let i=0;i<5;i++){
+        const dot=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.05,0.13),
+          new THREE.MeshBasicMaterial({color:ore.dark}));
+        dot.position.set((Math.random()-.5)*0.65,0.45,(Math.random()-.5)*0.65);
+        mesh.add(dot);
+      }
+      // Glow for rare ores
+      if(ore.id==='diamond'||ore.id==='gold'||ore.id==='gem'){
+        const gl=new THREE.PointLight(ore.id==='diamond'?0x00e5ff:ore.id==='gold'?0xffd700:0xff00ff,0.8,3);
+        gl.position.copy(mesh.position);worldScene.add(gl);
+      }
+    }
+    wEdge(mesh,0x111111,0.1);
+    const id=mine3dBlocks.length;
+    mesh.userData={type:'ore',oreId:id,label:ore.label,oreType:ore};
+    worldInteractables.push(mesh);
+    mine3dBlocks.push({mesh,oreType:ore,hp:ore.hp,maxHp:ore.hp,mined:false,id,crackMesh:null});
   }
-  // Darken block
-  const t=progress;const oc=block.oreType.color,dc=block.oreType.dark;
-  const r1=(oc>>16)&0xff,g1=(oc>>8)&0xff,b1=oc&0xff,r2=(dc>>16)&0xff,g2=(dc>>8)&0xff,b2=dc&0xff;
-  block.mesh.material.color.setRGB((r1+(r2-r1)*t)/255,(g1+(g2-g1)*t)/255,(b1+(b2-b1)*t)/255);
-  // Scale block slightly as it breaks
-  const sc=1-progress*0.08;block.mesh.scale.set(sc,sc,sc);
-  block.crackMesh=cg;block.mesh.add(cg);
-}
 
-function startMineClick(){
-  if(currentWorld!=='mine'&&currentWorld!=='combo')return;
-  if(!lookedAtObj||lookedAtObj.userData.type!=='ore')return;
-  const block=mine3dBlocks.find(b=>b.id===lookedAtObj.userData.oreId&&!b.mined);if(!block)return;
-  mineHoldTarget=block;mineBreakProgress=0;doMineHit(block);
-  mineHoldInterval=setInterval(()=>{if(mineHoldTarget)doMineHit(mineHoldTarget);},270);
-}
-function mineHoldStop(){clearInterval(mineHoldInterval);mineHoldTarget=null;mineBreakProgress=0;hideMineProgress();}
+  // Wall ore veins (embedded in walls)
+  const wallOreSpots=[
+    [-15,1,-5],[-15,2,3],[-15,1,8],[15,1,-4],[15,2,6],[15,1,-10],
+    [0,1,-15],[5,2,-15],[-6,1,-15],[3,1,15],[-8,2,15],[7,1,15]
+  ];
+  wallOreSpots.forEach(([wx,wy,wz])=>{
+    const ore=randOre();
+    const mat=new THREE.MeshLambertMaterial({color:ore.color});
+    let mesh;
+    if(Math.abs(wx)===15){
+      mesh=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.9),mat);
+    } else {
+      mesh=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.9,0.7),mat);
+    }
+    mesh.position.set(wx,wy,wz);worldScene.add(mesh);
+    if(ore.id!=='stone'){
+      for(let i=0;i<4;i++){
+        const dot=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.06),new THREE.MeshBasicMaterial({color:ore.dark}));
+        dot.position.set((Math.random()-.5)*0.4,(Math.random()-.5)*0.4,0.38);mesh.add(dot);
+      }
+    }
+    wEdge(mesh,0x111111,0.1);
+    const id=mine3dBlocks.length;
+    mesh.userData={type:'ore',oreId:id,label:ore.label,oreType:ore};
+    worldInteractables.push(mesh);
+    mine3dBlocks.push({mesh,oreType:ore,hp:ore.hp,maxHp:ore.hp,mined:false,id,crackMesh:null});
+  });
 
-function doMineHit(block){
-  if(!block||block.mined){mineHoldStop();return;}
-  const pl=S.toolLevel&&S.toolLevel.pickaxe||0,dmg=pl>0?1+Math.floor((pl-1)/2):1;
-  block.hp-=dmg;mineBreakProgress=1-block.hp/block.maxHp;
-  addCracks(block,mineBreakProgress);
-  showMineProgress(mineBreakProgress,block.oreType.label);
-  if(block.hp<=0){
-    block.mined=true;mineHoldStop();breakBlock3D(block.mesh);worldInteractables=worldInteractables.filter(m=>m!==block.mesh);
-    const mg={};
-    Object.entries(block.oreType.loot).forEach(([m,[mn,mx]])=>{const n=mn+Math.floor(Math.random()*(mx-mn+1));if(n>0){S.materials[m]=(S.materials[m]||0)+n;mg[m]=n;}});
-    S.blocksMinedTotal=(S.blocksMinedTotal||0)+1;
-    const bpx=Math.max(1,10-(S.mineUpgrade||0)*2);
-    if(S.blocksMinedTotal%bpx===0){const xg=10+(pl>0?(pl-1)*3:0);addXp(xg,'mine');if(pl>0)addToolXp('pickaxe',5);toast('+'+xg+' XP!','green-toast');}
-    if(block.oreType.xp>0)addXp(block.oreType.xp,'mine');
-    if(block.oreType.rare){particles('💎');const ms=Object.entries(mg).map(([m,n])=>matEmoji(m)+'+'+n).join(' ');toast('Rare! '+block.oreType.label+' '+ms,'gold-toast');}
-    syncHud();updateWorldHud();updateMine3dHud();saveProgress();
-    if(mine3dBlocks.filter(b=>!b.mined).length===0)mineComplete();
-  }
+  showMineProgress();
+  worldCamera.position.set(0,1.7,0);
 }
-function mineComplete(){
-  addXp(500,'mine');toast('Cave cleared! +500 XP!','gold-toast');particles('⛏️');
-  setTimeout(()=>{
-    const n=document.createElement('div');n.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);display:flex;align-items:center;justify-content:center;z-index:9999;flex-direction:column;gap:14px';
-    n.innerHTML='<div style="font-size:52px">⛏️</div>'
-      +'<div style="font-family:\'Fredoka One\',cursive;font-size:34px;color:#fff">Cave Cleared!</div>'
-      +'<div style="font-family:\'Fredoka One\',cursive;font-size:20px;color:#43c47a">+500 XP Bonus!</div>'
-      +'<button onclick="this.parentElement.remove();buildMine3D();" style="font-family:\'Fredoka One\',cursive;font-size:18px;background:#7c4dff;color:#fff;border:none;border-radius:16px;padding:14px 32px;cursor:pointer">New Layer</button>'
-      +'<button onclick="this.parentElement.remove();leaveWorld();" style="font-family:\'Fredoka One\',cursive;font-size:15px;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:14px;padding:10px 24px;cursor:pointer">Leave</button>';
-    document.body.appendChild(n);
-  },700);
-}
-function breakBlock3D(mesh){
-  let sc=1;const iv=setInterval(()=>{sc*=0.78;mesh.scale.set(sc,sc,sc);mesh.rotation.x+=0.15;mesh.rotation.z+=0.1;if(sc<0.04){clearInterval(iv);worldScene.remove(mesh);}},35);
-}
-function showMineProgress(pct,label){
-  let b=document.getElementById('mine-progress-bar');
-  if(!b){b=document.createElement('div');b.id='mine-progress-bar';b.style.cssText='position:fixed;bottom:120px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.88);border:2px solid rgba(255,184,0,.45);border-radius:14px;padding:8px 16px;min-width:200px;z-index:500;text-align:center';document.body.appendChild(b);}
-  b.innerHTML='<div style="font-family:\'Fredoka One\',cursive;font-size:13px;color:#fff;margin-bottom:4px">⛏️ '+label+'</div>'
-    +'<div style="background:rgba(255,255,255,.15);border-radius:6px;height:10px;overflow:hidden"><div style="width:'+(pct*100)+'%;height:100%;background:#ffb800;border-radius:6px;transition:width .08s"></div></div>'
-    +'<div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:3px">'+Math.round(pct*100)+'% broken</div>';
-}
-function hideMineProgress(){const b=document.getElementById('mine-progress-bar');if(b)b.remove();}
-function updateMine3D(t){worldScene.children.forEach(c=>{if(c.isPointLight)c.intensity=1.9+Math.sin(t*2+c.position.x)*0.12;});}
-function updateMine3dHud(){
-  const el=document.getElementById('mine-3d-hud');if(!el)return;
-  const rem=mine3dBlocks.filter(b=>!b.mined).length,tot=mine3dBlocks.length;
-  const pl=S.toolLevel&&S.toolLevel.pickaxe||0,bpx=Math.max(1,10-(S.mineUpgrade||0)*2);
-  el.style.display='flex';
-  el.innerHTML='<span style="font-family:\'Fredoka One\',cursive;font-size:15px;color:#ffb800">⛏️ Mine</span>'
-    +'<span style="font-size:12px;color:rgba(255,255,255,.7)">'+rem+'/'+tot+' | '+bpx+'/XP</span>'
-    +(pl>0?'<span style="font-size:12px;color:#a78bfa">Pickaxe Lv.'+pl+'</span>':'<span style="font-size:12px;color:#f44336">Need Pickaxe!</span>')
-    +'<span style="font-size:11px;color:rgba(255,255,255,.35)">Look + hold click</span>';
-}
-
-// ══════════════════════
-// FOREST
-// ══════════════════════
-const TREE_DEFS3D=[
-  {id:'oak',label:'Oak Tree',trunkColor:0x5a3a18,leafColor:0x2a7a10,trunkH:3,leafS:2.5,wood:3,xp:5,hp:3,weight:38},
-  {id:'pine',label:'Pine Tree',trunkColor:0x4a2a10,leafColor:0x0d5a0a,trunkH:4.5,leafS:1.8,wood:2,xp:3,hp:2,weight:27},
-  {id:'birch',label:'Birch Tree',trunkColor:0xd0c8b0,leafColor:0x5a9a20,trunkH:3.5,leafS:2.2,wood:4,xp:4,hp:2,weight:18},
-  {id:'magic',label:'Magic Tree',trunkColor:0x5a1080,leafColor:0x8a0a9a,trunkH:4,leafS:3.2,wood:2,xp:15,hp:4,weight:10},
-  {id:'ancient',label:'Ancient Tree',trunkColor:0x2a2010,leafColor:0x1a5a10,trunkH:6,leafS:4.5,wood:8,xp:25,hp:6,weight:7},
-];
-var forest3dTrees=[],treesChoppedThisRound=0,totalTreesThisRound=0;
 
 function buildForest3D(){
   worldScene.background=new THREE.Color(0x72c4ee);worldScene.fog=new THREE.Fog(0x72c4ee,25,80);
@@ -4377,6 +4413,234 @@ function getToolColor(tool){ return getToolTier(S.toolLevel&&S.toolLevel[tool]||
 function getAttackMult(tool){ return getToolTier(S.toolLevel&&S.toolLevel[tool]||1).attackMult; }
 function getSpeedMult(tool){ return getToolTier(S.toolLevel&&S.toolLevel[tool]||1).speedMult; }
 const TOOL_LEVEL_NAMES=['','Wooden','Stone','Iron','Gold','Diamond','Netherite','Crystal','Infernal','Celestial','GODLIKE'];
+
+// ════════════════════════════════════════════
+// MATERIAL CRAFTING RECIPES
+// Using drops from mobs, mining, and chopping
+// ════════════════════════════════════════════
+const CRAFTING_RECIPES = [
+  // HEALTH items
+  {id:'health_potion',   name:'Health Potion',    icon:'🧪', cat:'⚔️ Combat',
+   req:{bone:2, coal:1},
+   effect:(S)=>{ S.healthPotions=(S.healthPotions||0)+1; },
+   desc:'Restores 30 HP during combat. Made from bones + coal.',
+   benefit:'Restore 30 HP instantly in any world'},
+
+  {id:'iron_shield',     name:'Iron Shield',      icon:'🛡️', cat:'⚔️ Combat',
+   req:{iron:5, stone:3},
+   effect:(S)=>{ S.ironShield=true; S.hasArmor=true; },
+   desc:'Basic armor — reduces all damage by 20%.',
+   benefit:'-20% damage from all enemies'},
+
+  {id:'diamond_armor',   name:'Diamond Armor',    icon:'💎', cat:'⚔️ Combat',
+   req:{gem:5, iron:8, gold:3},
+   effect:(S)=>{ S.diamondArmor=true; S.hasArmor=true; },
+   desc:'Top-tier armor — reduces all damage by 35%.',
+   benefit:'-35% damage from all enemies'},
+
+  {id:'bone_arrows',     name:'Bone Arrows (×10)',icon:'🏹', cat:'⚔️ Combat',
+   req:{bone:3, wood:2},
+   effect:(S)=>{ S.bonusArrows=(S.bonusArrows||0)+10; },
+   desc:'Extra arrows for your bow. Crafted from bones + wood.',
+   benefit:'+10 bonus arrows'},
+
+  {id:'poison_tip',      name:'Poison Arrow Tips',icon:'☠️', cat:'⚔️ Combat',
+   req:{gem:1, bone:4},
+   effect:(S)=>{ S.poisonArrows=true; },
+   desc:'Arrows deal 50% extra damage for the next wave.',
+   benefit:'Arrows deal 1.5× damage next wave'},
+
+  // MINING items
+  {id:'mining_charm',    name:'Mining Charm',     icon:'⛏️', cat:'⛏️ Mining',
+   req:{gold:2, stone:5},
+   effect:(S)=>{ S.miningSpeed=(S.miningSpeed||1)*1.3; },
+   desc:'Increases mining speed by 30%. Stack up to 3×.',
+   benefit:'+30% mining speed'},
+
+  {id:'gem_magnet',      name:'Gem Magnet',       icon:'🧲', cat:'⛏️ Mining',
+   req:{iron:3, gold:1},
+   effect:(S)=>{ S.gemMagnet=true; },
+   desc:'Double ore drops from every block you mine.',
+   benefit:'2× ore drops from mining'},
+
+  {id:'cave_torch',      name:'Cave Torch Pack',  icon:'🔦', cat:'⛏️ Mining',
+   req:{wood:3, coal:2},
+   effect:(S)=>{ S.mineVisibility=(S.mineVisibility||1)*1.5; },
+   desc:'Increases fog distance in the mine so you can see further.',
+   benefit:'See 50% further underground'},
+
+  {id:'fortune_pick',    name:'Fortune Pickaxe',  icon:'🪄', cat:'⛏️ Mining',
+   req:{gem:3, gold:4, iron:5},
+   effect:(S)=>{ if(!S.toolLevel)S.toolLevel={};  S.toolLevel.pickaxe=(S.toolLevel.pickaxe||1)+2; },
+   desc:'Instantly upgrades your pickaxe by 2 levels!',
+   benefit:'+2 pickaxe levels instantly'},
+
+  // XP & PROGRESSION items
+  {id:'xp_tome',         name:'XP Tome',          icon:'📖', cat:'📚 Learning',
+   req:{bone:3, gem:1, wood:2},
+   effect:(S)=>{ S.xp=(S.xp||0)+200; },
+   desc:'An ancient tome that grants 200 XP when read.',
+   benefit:'+200 XP immediately'},
+
+  {id:'scholar_scroll',  name:'Scholar Scroll',   icon:'📜', cat:'📚 Learning',
+   req:{wood:4, gold:1},
+   effect:(S)=>{ S.xpMult2h=Date.now()+7200000; },
+   desc:'2× XP for 2 hours from answering questions.',
+   benefit:'2× question XP for 2 hours'},
+
+  {id:'speed_boots',     name:'Speed Boots',      icon:'👟', cat:'📚 Learning',
+   req:{bone:2, iron:4},
+   effect:(S)=>{ S.speedBoost=true; },
+   desc:'Move faster in all 3D worlds for the rest of this session.',
+   benefit:'+30% movement speed in worlds'},
+
+  // SILVER/CLASH items
+  {id:'gold_ingot',      name:'Gold Bar',         icon:'🟡', cat:'💰 Economy',
+   req:{gold:5},
+   effect:(S)=>{ S.silver=(S.silver||0)+200; },
+   desc:'Smelt gold ore into a solid bar worth 200 silver.',
+   benefit:'+200 Silver'},
+
+  {id:'gem_exchange',    name:'Gem → Cash',       icon:'💎', cat:'💰 Economy',
+   req:{gem:3},
+   effect:(S)=>{ S.clash=(S.clash||0)+50; },
+   desc:'Exchange 3 gems for 50 Clash Cash.',
+   benefit:'+50 Clash Cash'},
+
+  {id:'bone_meal',       name:'Bone Meal',        icon:'🦴', cat:'💰 Economy',
+   req:{bone:5},
+   effect:(S)=>{ S.silver=(S.silver||0)+75; S.xp=(S.xp||0)+50; },
+   desc:'Ground bones make great fertilizer — worth silver and XP.',
+   benefit:'+75 Silver +50 XP'},
+];
+
+function openCraftingPanel(){
+  stopLab();
+  showScreen('crafting');
+  buildCraftingPanel();
+}
+
+function buildCraftingPanel(){
+  const grid = document.getElementById('craft-grid');
+  if(!grid) return;
+  grid.innerHTML = '';
+
+  // Current materials display
+  const mats = S.materials || {};
+  const matBar = document.createElement('div');
+  matBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px;background:rgba(255,255,255,.05);border-radius:14px;margin-bottom:16px';
+  const matList = [
+    {key:'bone',  icon:'🦴', label:'Bone'},
+    {key:'iron',  icon:'⚙️', label:'Iron'},
+    {key:'gem',   icon:'💎', label:'Gem'},
+    {key:'gold',  icon:'🟡', label:'Gold'},
+    {key:'wood',  icon:'🪵', label:'Wood'},
+    {key:'stone', icon:'🪨', label:'Stone'},
+    {key:'coal',  icon:'🪨', label:'Coal'},
+  ];
+  matList.forEach(m => {
+    const chip = document.createElement('div');
+    chip.style.cssText = 'background:rgba(255,255,255,.1);border-radius:20px;padding:5px 12px;font-size:14px;color:#fff';
+    chip.textContent = m.icon + ' ' + (mats[m.key]||0) + ' ' + m.label;
+    matBar.appendChild(chip);
+  });
+  grid.appendChild(matBar);
+
+  // Group by category
+  const cats = {};
+  CRAFTING_RECIPES.forEach(r => {
+    if(!cats[r.cat]) cats[r.cat] = [];
+    cats[r.cat].push(r);
+  });
+
+  Object.entries(cats).forEach(([cat, recipes]) => {
+    const title = document.createElement('div');
+    title.style.cssText = 'font-family:Fredoka One,cursive;font-size:17px;color:#a78bfa;margin:12px 0 8px;border-bottom:1px solid rgba(124,77,255,.2);padding-bottom:4px';
+    title.textContent = cat;
+    grid.appendChild(title);
+
+    const row = document.createElement('div');
+    row.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:8px';
+
+    recipes.forEach(r => {
+      const canCraft = Object.entries(r.req).every(([m,n]) => (mats[m]||0) >= n);
+      const card = document.createElement('div');
+      card.style.cssText = 'background:rgba(255,255,255,.06);border:2px solid rgba(' +
+        (canCraft ? '67,196,122' : '255,255,255') + ',.2);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px';
+
+      const reqStr = Object.entries(r.req).map(([m,n]) => {
+        const has = (mats[m]||0);
+        const enough = has >= n;
+        const icons = {bone:'🦴',iron:'⚙️',gem:'💎',gold:'🟡',wood:'🪵',stone:'🪨',coal:'🪨'};
+        return '<span style="color:' + (enough?'#43c47a':'#f44336') + '">' + (icons[m]||m) + ' ' + n + '</span>';
+      }).join(' ');
+
+      card.innerHTML = `
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:28px">${r.icon}</span>
+          <div>
+            <div style="font-family:Fredoka One,cursive;font-size:15px;color:#fff">${r.name}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.4)">${r.desc}</div>
+          </div>
+        </div>
+        <div style="font-size:12px">Needs: ${reqStr}</div>
+        <div style="font-size:12px;color:#43c47a">✨ ${r.benefit}</div>
+        <button style="font-family:Fredoka One,cursive;font-size:14px;background:${canCraft?'#43c47a':'rgba(255,255,255,.1)'};color:${canCraft?'#000':'rgba(255,255,255,.4)'};border:none;border-radius:10px;padding:8px 0;cursor:${canCraft?'pointer':'not-allowed'};width:100%;margin-top:4px"
+          ${canCraft?'':'disabled'}
+          onclick="doCraftItem('${r.id}')">
+          ${canCraft ? '⚒️ Craft!' : '🔒 Need more materials'}
+        </button>`;
+      row.appendChild(card);
+    });
+    grid.appendChild(row);
+  });
+}
+
+function doCraftItem(id) {
+  const r = CRAFTING_RECIPES.find(x => x.id === id);
+  if (!r) return;
+  const mats = S.materials || {};
+  if (!Object.entries(r.req).every(([m,n]) => (mats[m]||0) >= n)) {
+    toast('Not enough materials!'); return;
+  }
+  // Deduct materials
+  Object.entries(r.req).forEach(([m,n]) => {
+    S.materials[m] = (S.materials[m]||0) - n;
+  });
+  // Apply effect
+  try { r.effect(S); } catch(e) { console.error(e); }
+  // Show animation
+  showCraftAnimation(r.icon, r.name, r.benefit);
+  syncHud();
+  saveProgress();
+  // Rebuild panel to reflect new material counts
+  setTimeout(() => buildCraftingPanel(), 800);
+  toast('✨ Crafted ' + r.name + '! ' + r.benefit, 'green-toast');
+  particles(r.icon);
+}
+
+// Apply crafted speed boost in world movement
+function getCraftedMoveSpeed(){
+  return (S.speedBoost ? 1.3 : 1.0);
+}
+// Apply mining speed boost
+function getCraftedMineSpeed(){
+  return (S.miningSpeed || 1.0);
+}
+// Apply gem magnet
+function getCraftedDropMult(){
+  return (S.gemMagnet ? 2 : 1);
+}
+
+// Add a screen-crafting HTML screen (or use craft-panel)
+// We'll hook into existing craft panel for now
+const _origOpenCraft = typeof openCraft !== 'undefined' ? openCraft : null;
+function openCraftFull() {
+  if (_origOpenCraft) _origOpenCraft();
+  // Also add crafting tab to existing panel
+}
+
+
 const TOOL_RECIPES=[
   {id:'sword',name:'Iron Sword',icon:'⚔️',desc:'Unlocks Battle Arena - kills drop Silver!',req:{iron:3,bone:2}},
   {id:'pickaxe',name:'Pickaxe',icon:'⛏️',desc:'Unlocks Mine - hold click to break blocks',req:{iron:2,stone:3}},
@@ -4648,9 +4912,15 @@ async function saveProgress(){
     silver:S.silver,clash:S.clash,scrap:S.scrap,upgrades:S.upgrades,crafted:S.crafted,
     xp:S.xp,xpLevel:S.xpLevel,materials:S.materials,toolLevel:S.toolLevel,toolXp:S.toolXp,
     mineUpgrade:S.mineUpgrade,blocksMinedTotal:S.blocksMinedTotal,treesChoppedTotal:S.treesChoppedTotal,
-    mobWave:S.mobWave,mobBattlesWon:S.mobBattlesWon,hasArmor:S.hasArmor
+    mobWave:S.mobWave,mobBattlesWon:S.mobBattlesWon,hasArmor:S.hasArmor,
+    mobsKilled:S.mobsKilled,
+    premium:S.premium||null,
+    skipPasses:S.skipPasses||0,
+    xpBoost:S.xpBoost||null,
+    teacherPro:S.teacherPro||null,
+    classCode:S.classCode||null
   });
-  await sheetsCall('save',{email:currentUser.email,gameState:gs});
+  sheetsCall('save',{email:currentUser.email,gameState:gs});
 }
 function startBattle(){startWorld3D('arena');}
 
@@ -6110,8 +6380,8 @@ const GATE_CONFIG = {
   pvp:         { required: 2, label: '⚔️ Enter PvP' },
   duel:        { required: 2, label: '🥊 Start Duel' },
   servers:     { required: 2, label: '🌐 Join Servers' },
-  leaderboard: { required: 1, label: '🏆 View Leaderboard' },
-  class:       { required: 1, label: '🎒 Open Class' },
+  leaderboard: { required: 0, label: '🏆 View Leaderboard' },
+  class:       { required: 0, label: '🎒 Open Class' },
 };
 
 var gateTarget = null;    // where to go after gate
@@ -6297,8 +6567,8 @@ async function createPvpRoom(){
     const jl=document.getElementById('pvp-join-section');
     if(mm) mm.style.display='flex';
     if(jl) jl.style.display='none';
-    if(wt) wt.style.display='flex';
-    const cd=document.getElementById('pvp-room-code-display');
+    if(wt){ wt.style.display='flex'; wt.style.flexDirection='column'; wt.style.alignItems='center'; wt.style.gap='12px'; }
+    const cd=document.getElementById('pvp-room-code');
     if(cd) cd.textContent=code;
     toast('Room created! Share code: '+code,'green-toast');
     // Poll for opponent joining
@@ -6754,22 +7024,25 @@ function openLeaderboard(){
   loadLeaderboard();
 }
 async function loadLeaderboard(){
-  const el=document.getElementById('lb-content');
-  if(el) el.innerHTML='<div style="text-align:center;color:rgba(255,255,255,.5);padding:40px">Loading...</div>';
+  const loading=document.getElementById('lb-loading');
+  const table=document.getElementById('lb-table');
+  if(loading) loading.style.display='block';
+  if(table) table.style.display='none';
   const res=await sheetsCall('leaderboard',{}).catch(()=>null);
-  if(res&&res.ok) renderLeaderboard(res.players||[]);
-  else if(el) el.innerHTML='<div style="text-align:center;color:#f44336;padding:40px">Could not load. Check connection.</div>';
+  if(loading) loading.style.display='none';
+  if(res&&res.ok){ if(table) table.style.display='block'; renderLeaderboard(res.players||[]); }
+  else if(loading){ loading.style.display='block'; loading.textContent='Could not load. Check connection.'; }
 }
 var lbTab='xp';
 function switchLbTab(tab){
   lbTab=tab;
   document.querySelectorAll('.lb-tab').forEach(t=>t.classList.remove('active'));
-  const tabEl=document.getElementById('lb-tab-'+tab);
+  const tabEl=document.getElementById('tab-'+tab);
   if(tabEl) tabEl.classList.add('active');
   loadLeaderboard();
 }
 function renderLeaderboard(players){
-  const el=document.getElementById('lb-content');
+  const el=document.getElementById('lb-table');
   if(!el)return;
   const key={xp:'xp',silver:'silver',wave:'wave',blocks:'blocks',mobs:'mobs',trees:'trees'}[lbTab]||'xp';
   const label={xp:'⭐ XP',silver:'🪙 Silver',wave:'⚔️ Waves',blocks:'⛏️ Blocks',mobs:'💀 Mobs',trees:'🌲 Trees'}[lbTab]||'⭐ XP';
@@ -6780,14 +7053,20 @@ function renderLeaderboard(players){
     const medals=['🥇','🥈','🥉'];
     const rank=i<3?medals[i]:'#'+(i+1);
     const row=document.createElement('div');
-    row.style.cssText='display:flex;align-items:center;gap:12px;padding:10px 16px;border-radius:12px;margin-bottom:6px;background:'+(isMe?'rgba(124,77,255,.2)':'rgba(255,255,255,.05)')+';border:'+(isMe?'1px solid rgba(124,77,255,.5)':'1px solid transparent');
-    row.innerHTML='<div style="font-size:22px;min-width:36px">'+rank+'</div>'
-      +'<div style="flex:1"><div style="font-size:17px;color:'+(isMe?'#a78bfa':'#fff')+'">'+p.fname+' '+p.lname+'</div>'
-      +'<div style="font-size:12px;color:rgba(255,255,255,.4)">Level '+p.level+'</div></div>'
-      +'<div style="font-size:18px;color:#ffb800">'+((p[key]||0).toLocaleString())+' '+label+'</div>';
+    row.style.cssText='display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:12px;margin-bottom:8px;background:'+(isMe?'rgba(124,77,255,.2)':'rgba(255,255,255,.05)')+';border:'+(isMe?'1px solid rgba(124,77,255,.5)':'1px solid transparent');
+    const nameDiv=document.createElement('div');nameDiv.style.flex='1';
+    const nameRow=document.createElement('div');nameRow.style.cssText='font-size:17px;color:'+(isMe?'#a78bfa':'#fff');
+    nameRow.textContent=p.fname+' '+(p.lname||'');
+    const lvlRow=document.createElement('div');lvlRow.style.cssText='font-size:12px;color:rgba(255,255,255,.4)';
+    lvlRow.textContent='Level '+(p.level||1);
+    nameDiv.appendChild(nameRow);nameDiv.appendChild(lvlRow);
+    const rankDiv=document.createElement('div');rankDiv.style.cssText='font-size:22px;min-width:40px';rankDiv.textContent=rank;
+    const scoreDiv=document.createElement('div');scoreDiv.style.cssText='font-size:18px;color:#ffb800;text-align:right';
+    scoreDiv.textContent=((p[key]||0).toLocaleString())+' '+label;
+    row.appendChild(rankDiv);row.appendChild(nameDiv);row.appendChild(scoreDiv);
     el.appendChild(row);
   });
-  if(!sorted.length) el.innerHTML='<div style="text-align:center;color:rgba(255,255,255,.4);padding:40px">No players yet!</div>';
+  if(!sorted.length) el.innerHTML='<div style="text-align:center;color:rgba(255,255,255,.4);padding:40px">No players yet! Be the first.</div>';
 }
 function showLeaderboardAfterWave(){
   openLeaderboard();
@@ -6931,7 +7210,43 @@ async function copyClassCode(){
   }
 }
 function showTeacherOrStudent(){
-  showScreen('teacher-login');
+  // Students go to class screen, teachers can click the link
+  showScreen('class');
+  loadClassView();
+}
+async function loadClassView(){
+  // Show current class info if student has a class code
+  const code=S.classCode;
+  const cur=document.getElementById('class-current');
+  const codeEl=document.getElementById('class-code-display');
+  if(code){
+    if(cur) cur.style.display='block';
+    if(codeEl) codeEl.textContent=code;
+    // Load class students for mini leaderboard
+    const res=await sheetsCall('getClassStudents',{classCode:code}).catch(()=>null);
+    if(res&&res.ok) renderClassLeaderboard(res.students||[]);
+  } else {
+    if(cur) cur.style.display='none';
+  }
+}
+function renderClassLeaderboard(students){
+  const el=document.getElementById('class-lb');
+  if(!el)return;
+  students.sort((a,b)=>(b.xp||0)-(a.xp||0));
+  el.innerHTML='<div style="font-family:Fredoka One,cursive;font-size:18px;color:#ffb800;margin-bottom:10px">🏆 Class Leaderboard</div>';
+  students.slice(0,10).forEach((s,i)=>{
+    const isMe=currentUser&&s.email===currentUser.email;
+    const medals=['🥇','🥈','🥉'];
+    const rank=i<3?medals[i]:'#'+(i+1);
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:12px;margin-bottom:6px;background:'+(isMe?'rgba(124,77,255,.2)':'rgba(255,255,255,.05)')+';border:'+(isMe?'1px solid rgba(124,77,255,.5)':'1px solid transparent');
+    const rankEl=document.createElement('div');rankEl.style.cssText='font-size:20px;min-width:36px';rankEl.textContent=rank;
+    const nameEl=document.createElement('div');nameEl.style.cssText='flex:1;font-size:16px;color:'+(isMe?'#a78bfa':'#fff');nameEl.textContent=s.fname+' '+(s.lname||'');
+    const xpEl=document.createElement('div');xpEl.style.cssText='font-size:15px;color:#ffb800';xpEl.textContent='⭐ '+((s.xp||0).toLocaleString());
+    row.appendChild(rankEl);row.appendChild(nameEl);row.appendChild(xpEl);
+    el.appendChild(row);
+  });
+  if(!students.length) el.innerHTML+='<div style="color:rgba(255,255,255,.4);text-align:center;padding:16px">No classmates yet!</div>';
 }
 
 // ════════════════════════════════════════════
