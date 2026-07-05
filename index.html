@@ -5061,6 +5061,32 @@ function startDuelBattle(){
 // ══════════════════════
 // BUILD ARENA
 // ══════════════════════
+function startPvpCountdown(){
+  pvpState='countdown';
+  const mm=document.getElementById('pvp-matchmaking');
+  const wt=document.getElementById('pvp-waiting');
+  const cd=document.getElementById('pvp-countdown-overlay');
+  const jl=document.getElementById('pvp-join-section');
+  if(mm) mm.style.display='flex';
+  if(jl) jl.style.display='none';
+  if(wt) wt.style.display='none';
+  if(cd) cd.style.display='flex';
+  const greet=document.getElementById('pvp-opp-greeting');
+  if(greet) greet.textContent='vs '+pvpOppNameVal;
+  let count=3;
+  const countEl=document.getElementById('pvp-countdown-num');
+  if(countEl) countEl.textContent=count;
+  const iv=setInterval(()=>{
+    count--;
+    if(countEl) countEl.textContent=count>0?count:'FIGHT!';
+    if(count<=0){
+      clearInterval(iv);
+      if(cd) cd.style.display='none';
+      startPvpArena();
+    }
+  },1000);
+}
+
 function startPvpArena(){
   pvpState='battle';
   pvpMyKills=0; pvpOppKills=0; pvpRound=1;
@@ -6251,6 +6277,74 @@ function updateGatePips() {
 function closeGate() {
   const o = document.getElementById('gate-overlay');
   if (o) o.style.display = 'none';
+}
+
+
+// ════════════════════════════════════════════
+// PvP ROOM MANAGEMENT
+// ════════════════════════════════════════════
+async function createPvpRoom(){
+  if(!currentUser){toast('Log in first!');return;}
+  const code=Math.random().toString(36).substring(2,7).toUpperCase();
+  pvpRoomCode=code; pvpIsHost=true;
+  const res=await sheetsCall('pvpCreate',{
+    code, email:currentUser.email, fname:currentUser.fname, role:'p1'
+  });
+  if(res&&res.ok){
+    // Show waiting screen with code
+    const mm=document.getElementById('pvp-matchmaking');
+    const wt=document.getElementById('pvp-waiting');
+    const jl=document.getElementById('pvp-join-section');
+    if(mm) mm.style.display='flex';
+    if(jl) jl.style.display='none';
+    if(wt) wt.style.display='flex';
+    const cd=document.getElementById('pvp-room-code-display');
+    if(cd) cd.textContent=code;
+    toast('Room created! Share code: '+code,'green-toast');
+    // Poll for opponent joining
+    pvpPollInterval=setInterval(checkPvpOpponent,2000);
+  } else {
+    toast((res&&res.error)||'Could not create room. Check connection.','');
+  }
+}
+
+async function joinPvpRoom(){
+  if(!currentUser){toast('Log in first!');return;}
+  const inp=document.getElementById('pvp-code-input');
+  const code=(inp?inp.value:'').trim().toUpperCase();
+  if(code.length<4){toast('Enter the room code first!');return;}
+  pvpRoomCode=code; pvpIsHost=false;
+  const res=await sheetsCall('pvpJoin',{
+    code, email:currentUser.email, fname:currentUser.fname, role:'p2'
+  });
+  if(res&&res.ok){
+    pvpOppNameVal=res.oppName||'Opponent';
+    toast('Joined! Starting battle...','green-toast');
+    startPvpCountdown();
+  } else {
+    toast((res&&res.error)||'Room not found! Check the code.','');
+  }
+}
+
+async function checkPvpOpponent(){
+  const res=await sheetsCall('pvpCheck',{code:pvpRoomCode}).catch(()=>null);
+  if(res&&res.ok&&res.opponent){
+    clearInterval(pvpPollInterval);
+    pvpOppNameVal=res.opponent;
+    startPvpCountdown();
+  }
+}
+
+function cancelPvpWait(){
+  clearInterval(pvpPollInterval);
+  showPvp();
+}
+
+function copyPvpCode(){
+  if(!pvpRoomCode)return;
+  navigator.clipboard.writeText(pvpRoomCode)
+    .then(()=>toast('📋 Code copied! Share with your friend','green-toast'))
+    .catch(()=>toast('Code: '+pvpRoomCode+' — share manually','green-toast'));
 }
 
 function showPvp(){
