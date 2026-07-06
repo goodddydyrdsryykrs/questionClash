@@ -3946,181 +3946,562 @@ function updateArenaHud(){
 // ══════════════════════
 // MINE (3D, bright, degrading blocks)
 // ══════════════════════
-const ORE_TYPES=[
-  {id:'stone',label:'Stone',color:0x6a6055,dark:0x3a3028,hp:2,loot:{stone:[1,2]},xp:0,rare:false,weight:32},
-  {id:'dirt',label:'Dirt',color:0x7a5a40,dark:0x3a2010,hp:1,loot:{stone:[0,1]},xp:0,rare:false,weight:22},
-  {id:'coal',label:'Coal',color:0x3a3528,dark:0x151210,hp:2,loot:{coal:[1,2]},xp:0,rare:false,weight:18},
-  {id:'iron',label:'Iron Ore',color:0x8a6548,dark:0x4a2510,hp:3,loot:{iron:[1,1]},xp:0,rare:false,weight:13},
-  {id:'gold',label:'Gold Ore',color:0x9a8018,dark:0x5a4a05,hp:4,loot:{gold:[1,1]},xp:5,rare:true,weight:8},
-  {id:'gem',label:'Diamond Ore',color:0x185a8a,dark:0x08203a,hp:5,loot:{gem:[1,1]},xp:12,rare:true,weight:4},
-  {id:'mystery',label:'Mystery Block',color:0x6a0a9a,dark:0x2a0040,hp:3,loot:{gem:[0,1],gold:[0,1]},xp:15,rare:true,weight:3},
+const ORE_TYPES_BY_DEPTH=[
+  // Layer 0 - Surface (y=0 to -3): coal, stone, dirt
+  {id:'dirt',   label:'Dirt',        color:0x7a5a40,dark:0x3a2010,hp:1, mineMs:250,  xp:0,  loot:{stone:[0,1]},            shatterChance:0.00, weight:30, minDepth:0,  maxDepth:3},
+  {id:'stone',  label:'Stone',       color:0x888880,dark:0x444440,hp:2, mineMs:350,  xp:0,  loot:{stone:[1,2]},            shatterChance:0.00, weight:28, minDepth:0,  maxDepth:99},
+  {id:'coal',   label:'Coal',        color:0x2a2820,dark:0x111008,hp:2, mineMs:400,  xp:2,  loot:{coal:[1,2]},             shatterChance:0.01, weight:20, minDepth:0,  maxDepth:8},
+  // Layer 1 - Shallow (y=-4 to -8): iron, copper
+  {id:'iron',   label:'Iron Ore',    color:0x9a6548,dark:0x5a2a10,hp:3, mineMs:600,  xp:5,  loot:{iron:[1,1]},             shatterChance:0.02, weight:14, minDepth:3,  maxDepth:99},
+  {id:'copper', label:'Copper Ore',  color:0xb85a30,dark:0x6a2a10,hp:3, mineMs:650,  xp:4,  loot:{iron:[0,1],coal:[0,1]},  shatterChance:0.02, weight:12, minDepth:2,  maxDepth:12},
+  // Layer 2 - Mid (y=-9 to -14): gold, lapis
+  {id:'gold',   label:'Gold Ore',    color:0xd4a017,dark:0x6a4a00,hp:4, mineMs:900,  xp:10, loot:{gold:[1,1]},             shatterChance:0.04, weight:8,  minDepth:7,  maxDepth:99},
+  {id:'lapis',  label:'Lapis Ore',   color:0x1a5aaa,dark:0x082050,hp:4, mineMs:850,  xp:8,  loot:{gem:[0,1],coal:[1,2]},   shatterChance:0.03, weight:7,  minDepth:6,  maxDepth:18},
+  // Layer 3 - Deep (y=-15 to -20): diamond, redstone
+  {id:'diamond',label:'Diamond Ore', color:0x00e5ff,dark:0x004466,hp:6, mineMs:1400, xp:20, loot:{gem:[1,1]},              shatterChance:0.08, weight:4,  minDepth:13, maxDepth:99},
+  {id:'redstone',label:'Redstone',   color:0xdd1111,dark:0x660000,hp:5, mineMs:1100, xp:14, loot:{gem:[0,1],iron:[1,1]},   shatterChance:0.06, weight:5,  minDepth:12, maxDepth:99},
+  // Layer 4 - Bedrock (y=-21+): emerald, ancient
+  {id:'emerald',label:'Emerald',     color:0x00ff88,dark:0x004422,hp:8, mineMs:2000, xp:35, loot:{gem:[1,2]},              shatterChance:0.15, weight:2,  minDepth:19, maxDepth:99},
+  {id:'ancient',label:'Ancient Ore', color:0xaa44ff,dark:0x440088,hp:10,mineMs:3000, xp:60, loot:{gem:[2,3],gold:[1,2]},   shatterChance:0.25, weight:1,  minDepth:22, maxDepth:99},
 ];
-// Crack textures (overlay meshes)
-var mine3dBlocks=[],mineHoldInterval=null,mineBreakProgress=0,mineHoldTarget=null;
+
+// SOLID TERRAIN BLOCKS (un-minable walls/ceiling/floor structure)
+var mineTerrainBlocks=[]; // Three.Mesh array
+var mine3dBlocks=[];      // minable ore blocks
+var mineHoldInterval=null, mineBreakProgress=0, mineHoldTarget=null;
+var minePickaxeBroken=false;
+var mineGravity=0, mineOnGround=false;
+var mineCameraY=1.7; // tracks actual camera Y with gravity
+var MINE_FLOOR_Y=-0.3; // surface floor
+var CAVE_BOTTOM=-26;   // deepest point
+
+// Solid block map: key="x,y,z" → true means solid
+var mineBlockMap={};
+
+function mineBlockKey(x,y,z){return Math.round(x)+','+Math.round(y)+','+Math.round(z);}
+function mineIsSolid(x,y,z){return !!mineBlockMap[mineBlockKey(x,y,z)];}
+
+function getOreForDepth(depth){
+  // depth = positive number (0=surface, 25=deepest)
+  const candidates=ORE_TYPES_BY_DEPTH.filter(o=>depth>=o.minDepth&&depth<=o.maxDepth);
+  const tw=candidates.reduce((s,o)=>s+o.weight,0);
+  let r=Math.random()*tw;
+  for(const o of candidates){r-=o.weight;if(r<=0)return{...o};}
+  return {...candidates[0]};
+}
 
 function buildMine3D(){
-  worldScene.background=new THREE.Color(0x0a0806);
-  worldScene.fog=new THREE.Fog(0x0a0806,12,36);
-  worldScene.add(new THREE.AmbientLight(0x554433,0.6));
+  worldScene.background=new THREE.Color(0x060405);
+  worldScene.fog=new THREE.Fog(0x060405,10,30);
+  worldScene.add(new THREE.AmbientLight(0x332211,0.4));
 
-  // Torches on walls - warm orange glow
-  function mineTorch(x,y,z,wallDir){
-    const stick=new THREE.Mesh(new THREE.BoxGeometry(0.08,0.3,0.08),new THREE.MeshLambertMaterial({color:0x5a3010}));
-    stick.position.set(x,y,z);worldScene.add(stick);
-    const flame=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.14,0.12),new THREE.MeshBasicMaterial({color:0xff9900}));
-    flame.position.set(x,y+0.22,z);worldScene.add(flame);
-    const inner=new THREE.Mesh(new THREE.BoxGeometry(0.07,0.09,0.07),new THREE.MeshBasicMaterial({color:0xffdd66}));
-    inner.position.set(x,y+0.24,z);worldScene.add(inner);
-    const pl=new THREE.PointLight(0xff8822,2.8,9);pl.position.set(x,y+0.4,z);worldScene.add(pl);
+  mineTerrainBlocks=[];mine3dBlocks=[];worldInteractables=[];
+  mineBlockMap={};minePickaxeBroken=false;
+  mineCameraY=1.7;mineGravity=0;mineOnGround=false;
+
+  // ── Helper: add a SOLID non-minable block ──
+  function solidBlk(x,y,z,color){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),
+      new THREE.MeshLambertMaterial({color}));
+    m.position.set(x,y,z);worldScene.add(m);
+    mineBlockMap[mineBlockKey(x,y,z)]=true;
+    mineTerrainBlocks.push(m);
   }
 
-  // Stone color palette for varied walls
-  const stoneColors=[0x888880,0x7a7870,0x8a8878,0x6e6e66,0x969690,0x7c7c74];
-  const dirtColors=[0x7a5a30,0x6a4e28,0x8a6a38];
-  const gravelColors=[0x888888,0x808080,0x787878];
-
-  function rStone(){return stoneColors[Math.floor(Math.random()*stoneColors.length)];}
-  function rDirt(){return dirtColors[Math.floor(Math.random()*dirtColors.length)];}
-
-  // Helper
-  function blk(w,h,d,color,x,y,z,shadow){
-    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),new THREE.MeshLambertMaterial({color}));
-    m.position.set(x,y,z);m.receiveShadow=shadow;m.castShadow=shadow;worldScene.add(m);return m;
-  }
-
-  // FLOOR - irregular stone with some dirt patches and gravel
-  for(let x=-16;x<=16;x++)for(let z=-16;z<=16;z++){
-    const r=Math.random();
-    let c=rStone();
-    if(r<0.12)c=rDirt();
-    else if(r<0.18)c=0x888888; // gravel
-    const h=0.6+Math.random()*0.4;
-    blk(1,h,1,c,x,-h/2,z,true);
-  }
-
-  // CEILING - stalactites (cones) + varied stone
-  for(let x=-15;x<=15;x+=1)for(let z=-15;z<=15;z+=1){
-    blk(1,0.5+Math.random()*0.5,1,rStone(),x,5.3+Math.random()*0.2,z,false);
-  }
-  // Stalactites
-  for(let i=0;i<80;i++){
-    const sx=(Math.random()-0.5)*28;const sz=(Math.random()-0.5)*28;
-    const sh=0.5+Math.random()*1.8;
-    const cone=new THREE.Mesh(new THREE.ConeGeometry(0.08+Math.random()*0.14,sh,5),
-      new THREE.MeshLambertMaterial({color:rStone()}));
-    cone.position.set(sx,5.0-sh/2,sz);cone.rotation.x=Math.PI;worldScene.add(cone);
-  }
-
-  // WALLS - varied height giving cave feel
-  function caveWall(x1,z1,x2,z2){
-    const dx=x2-x1,dz=z2-z1,len=Math.sqrt(dx*dx+dz*dz);
-    for(let i=0;i<=len;i+=1){
-      const fx=x1+(dx/len)*i,fz=z1+(dz/len)*i;
-      const wallH=3+Math.floor(Math.random()*2);
-      for(let y=0;y<wallH;y++){
-        blk(1,1,1,rStone(),fx,y+0.5,fz,false);
-      }
-      // Dirt layer at bottom sometimes
-      if(Math.random()<0.3) blk(1,1,1,rDirt(),fx,-0.5,fz,false);
-    }
-  }
-  caveWall(-16,16,16,16);caveWall(-16,-16,16,-16);
-  caveWall(-16,-16,-16,16);caveWall(16,-16,16,16);
-
-  // Interior cave pillars and formations
-  const pillarPositions=[[-6,-6],[6,-6],[-6,6],[6,6],[0,-8],[0,8],[-10,0],[10,0],[-4,2],[4,-3]];
-  pillarPositions.forEach(([px,pz])=>{
-    const h=2+Math.floor(Math.random()*3);
-    for(let y=0;y<h;y++){
-      blk(1.2,1,1.2,rStone(),px,y+0.5,pz,true);
-    }
-    // Stalagmite on top
-    const sc=new THREE.Mesh(new THREE.ConeGeometry(0.3+Math.random()*0.2,0.8+Math.random(),5),
-      new THREE.MeshLambertMaterial({color:rStone()}));
-    sc.position.set(px,h+0.9,pz);worldScene.add(sc);
-  });
-
-  // Torches throughout cave
-  [[-14,2,0],[14,2,0],[0,2,-14],[0,2,14],
-   [-8,2,-8],[8,2,-8],[-8,2,8],[8,2,8],
-   [-4,2,0],[4,2,0],[0,2,-5],[0,2,5],
-   [-12,2,6],[-12,2,-6],[12,2,6],[12,2,-6]
-  ].forEach(([x,y,z])=>mineTorch(x,y,z));
-
-  // LAVA pools (decorative - static orange glowing floors)
-  [[4,5],[-5,9],[8,-7],[-9,-4]].forEach(([lx,lz])=>{
-    if(isNaN(lx))return;
-    const lavaMat=new THREE.MeshBasicMaterial({color:0xff5500});
-    for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
-      const lava=new THREE.Mesh(new THREE.BoxGeometry(1,0.15,1),lavaMat);
-      lava.position.set(lx+dx,-0.02,lz+dz);worldScene.add(lava);
-    }
-    const lavaLight=new THREE.PointLight(0xff4400,3.5,8);lavaLight.position.set(lx,0.5,lz);worldScene.add(lavaLight);
-  });
-
-  // MINEABLE ORE BLOCKS in walls and floor
-  mine3dBlocks=[];worldInteractables=[];
-  const tw=ORE_TYPES.reduce((s,o)=>s+o.weight,0);
-  function randOre(){let r=Math.random()*tw;for(const o of ORE_TYPES){r-=o.weight;if(r<=0)return{...o};}return{...ORE_TYPES[0]};}
-
-  // Floor ore veins - ore blocks embedded in floor
-  for(let x=-14;x<=14;x+=1)for(let z=-14;z<=14;z+=1){
-    const ore=randOre();
+  // ── Helper: add MINABLE ore block ──
+  function oreBlk(x,y,z,depth){
+    const ore=getOreForDepth(depth);
     const mat=new THREE.MeshLambertMaterial({color:ore.color});
-    const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,0.85,1),mat);
-    mesh.position.set(x,-0.42,z);worldScene.add(mesh);
-    // Add ore sparkle dots on top for non-stone ores
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mat);
+    mesh.position.set(x,y,z);worldScene.add(mesh);
+    mineBlockMap[mineBlockKey(x,y,z)]=true;
+    // sparkle dots for non-stone ores
     if(ore.id!=='stone'&&ore.id!=='dirt'){
       for(let i=0;i<5;i++){
-        const dot=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.05,0.13),
+        const d=new THREE.Mesh(new THREE.BoxGeometry(0.12,0.05,0.12),
           new THREE.MeshBasicMaterial({color:ore.dark}));
-        dot.position.set((Math.random()-.5)*0.65,0.45,(Math.random()-.5)*0.65);
-        mesh.add(dot);
+        d.position.set((Math.random()-.5)*.65,.51,(Math.random()-.5)*.65);
+        mesh.add(d);
       }
-      // Glow for rare ores
-      if(ore.id==='diamond'||ore.id==='gold'||ore.id==='gem'){
-        const gl=new THREE.PointLight(ore.id==='diamond'?0x00e5ff:ore.id==='gold'?0xffd700:0xff00ff,0.8,3);
+      if(ore.id==='diamond'||ore.id==='emerald'||ore.id==='ancient'){
+        const gl=new THREE.PointLight(ore.color,1.0,3);
         gl.position.copy(mesh.position);worldScene.add(gl);
       }
     }
-    wEdge(mesh,0x111111,0.1);
+    // Edge outline
+    wEdge(mesh,0x111111,0.08);
     const id=mine3dBlocks.length;
-    mesh.userData={type:'ore',oreId:id,label:ore.label,oreType:ore};
+    mesh.userData={type:'ore',oreId:id,label:ore.label,oreType:ore,depth};
     worldInteractables.push(mesh);
-    mine3dBlocks.push({mesh,oreType:ore,hp:ore.hp,maxHp:ore.hp,mined:false,id,crackMesh:null});
+    mine3dBlocks.push({mesh,oreType:ore,hp:ore.hp,maxHp:ore.hp,mined:false,id,crackMesh:null,depth});
+    return mesh;
   }
 
-  // Wall ore veins (embedded in walls)
-  const wallOreSpots=[
-    [-15,1,-5],[-15,2,3],[-15,1,8],[15,1,-4],[15,2,6],[15,1,-10],
-    [0,1,-15],[5,2,-15],[-6,1,-15],[3,1,15],[-8,2,15],[7,1,15]
+  // ── Torch helper ──
+  function torch(x,y,z){
+    const s=new THREE.Mesh(new THREE.BoxGeometry(.08,.3,.08),
+      new THREE.MeshLambertMaterial({color:0x5a3010}));
+    s.position.set(x,y,z);worldScene.add(s);
+    const f=new THREE.Mesh(new THREE.BoxGeometry(.12,.14,.12),
+      new THREE.MeshBasicMaterial({color:0xff9900}));
+    f.position.set(x,y+.22,z);worldScene.add(f);
+    const fi=new THREE.Mesh(new THREE.BoxGeometry(.07,.09,.07),
+      new THREE.MeshBasicMaterial({color:0xffdd66}));
+    fi.position.set(x,y+.24,z);worldScene.add(fi);
+    const pl=new THREE.PointLight(0xff8822,3,9);pl.position.set(x,y+.4,z);worldScene.add(pl);
+  }
+
+  const stoneC=[0x888880,0x7a7870,0x8a8878,0x6e6e66,0x969690,0x7c7c74];
+  function rs(){return stoneC[Math.floor(Math.random()*stoneC.length)];}
+
+  // ═══════════════════════════════════════
+  // BUILD LAYERED CAVE (surface to bedrock)
+  // Uses Perlin-style offset to create organic cave tunnels
+  // ═══════════════════════════════════════
+
+  const W=14; // half-width of cave
+  // Cave "tunnels" - each layer drops down and may widen or narrow
+  // We build from y=1 (surface entrance) down to y=-26 (bedrock)
+
+  // Noise function (simple 2D)
+  function noise(x,z,seed){
+    return Math.sin(x*0.4+seed)*Math.cos(z*0.3+seed*1.7)*0.5+0.5;
+  }
+
+  // Surface entry: flat stone floor at y=0, walls at x=±14, z=±14
+  for(let x=-W;x<=W;x++){for(let z=-W;z<=W;z++){
+    solidBlk(x,-1,z,rs()); // surface floor
+    solidBlk(x,5,z,rs());  // surface ceiling
+  }}
+  // Surface outer walls
+  for(let x=-W-1;x<=W+1;x++){for(let y=-1;y<=5;y++){
+    solidBlk(x,y,-W-1,rs());solidBlk(x,y,W+1,rs());
+  }}
+  for(let z=-W;z<=W;z++){for(let y=-1;y<=5;y++){
+    solidBlk(-W-1,y,z,rs());solidBlk(W+1,y,z,rs());
+  }}
+
+  // ── DESCENDING CAVE SHAFT ──
+  // Main shaft drops from y=0 down at different x/z offsets per layer
+  // Think "staircase" like Minecraft caves
+
+  // Layer definitions: [startY, endY, shaftX, shaftZ, tunnelR]
+  const LAYERS=[
+    {name:'Surface',   sy:0,   ey:-4,  cx:0,  cz:0,  r:6,  torchEvery:3},
+    {name:'Shallow',   sy:-4,  ey:-9,  cx:3,  cz:-3, r:5,  torchEvery:4},
+    {name:'Mid',       sy:-9,  ey:-14, cx:-2, cz:5,  r:5,  torchEvery:5},
+    {name:'Deep',      sy:-14, ey:-20, cx:4,  cz:-4, r:4,  torchEvery:6},
+    {name:'Bedrock',   sy:-20, ey:-26, cx:-3, cz:2,  r:4,  torchEvery:8},
   ];
-  wallOreSpots.forEach(([wx,wy,wz])=>{
-    const ore=randOre();
-    const mat=new THREE.MeshLambertMaterial({color:ore.color});
-    let mesh;
-    if(Math.abs(wx)===15){
-      mesh=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.9),mat);
-    } else {
-      mesh=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.9,0.7),mat);
-    }
-    mesh.position.set(wx,wy,wz);worldScene.add(mesh);
-    if(ore.id!=='stone'){
-      for(let i=0;i<4;i++){
-        const dot=new THREE.Mesh(new THREE.BoxGeometry(0.1,0.1,0.06),new THREE.MeshBasicMaterial({color:ore.dark}));
-        dot.position.set((Math.random()-.5)*0.4,(Math.random()-.5)*0.4,0.38);mesh.add(dot);
+
+  // For each layer, carve a tunnel and fill with ores
+  LAYERS.forEach((layer,li)=>{
+    const {sy,ey,cx,cz,r}=layer;
+    const depth=Math.abs(sy); // surface depth number
+
+    for(let y=sy;y>ey;y--){
+      // Cave floor at this level (solid)
+      for(let x=cx-r-1;x<=cx+r+1;x++){for(let z=cz-r-1;z<=cz+r+1;z++){
+        const dist=Math.sqrt((x-cx)**2+(z-cz)**2);
+        // Outside radius = solid wall
+        if(dist>r+0.5){
+          if(!mineIsSolid(x,y,z)) solidBlk(x,y,z,rs());
+        }
+      }}
+
+      // Ores on the floor of each level
+      if(y===sy){ // floor row of this layer
+        for(let x=cx-r+1;x<cx+r;x++){for(let z=cz-r+1;z<cz+r;z++){
+          const d=Math.sqrt((x-cx)**2+(z-cz)**2);
+          if(d<r-0.5&&!mineIsSolid(x,y-1,z)) oreBlk(x,y-1,z,depth);
+        }}
+      }
+
+      // Ores in walls (side veins)
+      if(Math.random()<0.3){
+        const angle=Math.random()*Math.PI*2;
+        const wx=Math.round(cx+(r-0.5)*Math.cos(angle));
+        const wz=Math.round(cz+(r-0.5)*Math.sin(angle));
+        if(!mineIsSolid(wx,y,wz)) oreBlk(wx,y,z,depth);
       }
     }
-    wEdge(mesh,0x111111,0.1);
-    const id=mine3dBlocks.length;
-    mesh.userData={type:'ore',oreId:id,label:ore.label,oreType:ore};
-    worldInteractables.push(mesh);
-    mine3dBlocks.push({mesh,oreType:ore,hp:ore.hp,maxHp:ore.hp,mined:false,id,crackMesh:null});
+
+    // Ceiling for this layer
+    const ceilY=sy+1;
+    for(let x=cx-r-1;x<=cx+r+1;x++){for(let z=cz-r-1;z<=cz+r+1;z++){
+      if(!mineIsSolid(x,ceilY,z)) solidBlk(x,ceilY,z,rs());
+    }}
+
+    // Stalactites from ceiling
+    for(let i=0;i<8;i++){
+      const sx=cx+(Math.random()*2-1)*r;const sz=cz+(Math.random()*2-1)*r;
+      const sh=0.5+Math.random()*1.5;
+      const cone=new THREE.Mesh(new THREE.ConeGeometry(.1+Math.random()*.1,sh,5),
+        new THREE.MeshLambertMaterial({color:rs()}));
+      cone.position.set(sx,sy+1-sh/2,sz);cone.rotation.x=Math.PI;worldScene.add(cone);
+    }
+    // Stalagmites from floor
+    for(let i=0;i<6;i++){
+      const sx=cx+(Math.random()*2-1)*(r-1);const sz=cz+(Math.random()*2-1)*(r-1);
+      const sh=0.3+Math.random()*1.0;
+      const cone=new THREE.Mesh(new THREE.ConeGeometry(.08+Math.random()*.08,sh,5),
+        new THREE.MeshLambertMaterial({color:rs()}));
+      cone.position.set(sx,ey+sh/2+.5,sz);worldScene.add(cone);
+    }
+
+    // Connecting drop shaft to next layer (staircase-style)
+    if(li<LAYERS.length-1){
+      const next=LAYERS[li+1];
+      // Drop column connecting this layer to next
+      const dropX=Math.round((cx+next.cx)/2);
+      const dropZ=Math.round((cz+next.cz)/2);
+      for(let dy=ey;dy>=next.sy-1;dy--){
+        // Carve 3×3 shaft down
+        for(let dx=-1;dx<=1;dx++){for(let dz=-1;dz<=1;dz++){
+          const key=mineBlockKey(dropX+dx,dy,dropZ+dz);
+          delete mineBlockMap[key]; // make passable
+        }}
+        // Ledge ore on the side walls of shaft
+        if(Math.random()<0.4){
+          const sDepth=Math.abs(dy);
+          oreBlk(dropX+2,dy,dropZ,sDepth);
+        }
+        // Place torches on shaft wall periodically
+        if(Math.abs(dy-sy)%layer.torchEvery===0){
+          torch(dropX+1.4,dy+0.5,dropZ);
+        }
+      }
+    }
+
+    // Torches in main tunnel
+    for(let y=sy;y>ey;y-=layer.torchEvery){
+      torch(cx+r-0.6,y+0.5,cz);
+      if(r>4) torch(cx-(r-0.6),y+0.5,cz);
+    }
+
+    // Lava pools at deep levels
+    if(li>=2&&Math.random()<0.5){
+      const lx=cx+(Math.random()*2-1)*(r-2);
+      const lz=cz+(Math.random()*2-1)*(r-2);
+      const lavaMat=new THREE.MeshBasicMaterial({color:0xff5500});
+      for(let dx=-1;dx<=1;dx++){for(let dz=-1;dz<=1;dz++){
+        const lava=new THREE.Mesh(new THREE.BoxGeometry(1,.15,1),lavaMat);
+        lava.position.set(lx+dx,ey+0.5,lz+dz);worldScene.add(lava);
+      }}
+      const lg=new THREE.PointLight(0xff4400,4,10);lg.position.set(lx,ey+1,lz);worldScene.add(lg);
+    }
   });
 
-  showMineProgress();
+  // Extra ore veins scattered throughout
+  for(let i=0;i<60;i++){
+    const vy=(Math.random()*-25);
+    const vx=(Math.random()*2-1)*12;
+    const vz=(Math.random()*2-1)*12;
+    const depth=Math.abs(vy);
+    if(!mineIsSolid(Math.round(vx),Math.round(vy),Math.round(vz)))
+      oreBlk(Math.round(vx),Math.round(vy),Math.round(vz),depth);
+  }
+
+  showMineHud();
   worldCamera.position.set(0,1.7,0);
+  document.getElementById('mine-depth-hud').textContent='⬆ Surface';
 }
+
+// ── MINE PHYSICS UPDATE (gravity + collision) ──
+function updateMine3D(t){
+  if(minePickaxeBroken)return; // frozen when broken
+
+  const cam=worldCamera.position;
+  const speed=0.08*(getCraftedMoveSpeed?getCraftedMoveSpeed():1);
+
+  // Horizontal movement (WASD already handled by world loop)
+  // Clamp to cave bounds
+  cam.x=Math.max(-15,Math.min(15,cam.x));
+  cam.z=Math.max(-15,Math.min(15,cam.z));
+
+  // GRAVITY & JUMPING
+  if(!mineOnGround){
+    mineGravity-=0.012; // gravity pull
+    mineCameraY+=mineGravity;
+  }
+
+  // Floor collision: check if there's a solid block below camera
+  const footY=mineCameraY-1.7; // feet position
+  const bx=Math.round(cam.x),bz=Math.round(cam.z);
+  const blockBelow=mineIsSolid(bx,Math.floor(footY),bz)||
+                   mineIsSolid(bx,Math.floor(footY-0.3),bz);
+  if(blockBelow&&mineGravity<=0){
+    mineCameraY=Math.floor(footY+1)+1.7;
+    mineGravity=0;
+    mineOnGround=true;
+  } else {
+    mineOnGround=false;
+  }
+
+  // Hard floor at bedrock
+  if(mineCameraY<CAVE_BOTTOM+1.7){
+    mineCameraY=CAVE_BOTTOM+1.7;
+    mineGravity=0;mineOnGround=true;
+  }
+  // Ceiling collision
+  const headY=mineCameraY+0.3;
+  if(mineIsSolid(bx,Math.ceil(headY),bz)&&mineGravity>0){
+    mineGravity=-0.02;
+  }
+
+  cam.y=mineCameraY;
+
+  // Update depth HUD
+  const depthM=Math.max(0,Math.round(-(cam.y-1.7)));
+  const depthEl=document.getElementById('mine-depth-hud');
+  if(depthEl){
+    if(depthM<4) depthEl.textContent='⬆ Surface — Coal & Stone';
+    else if(depthM<9) depthEl.textContent='⛏ Shallow Depth — Iron & Copper';
+    else if(depthM<14) depthEl.textContent='⚙ Mid Depth — Gold & Lapis';
+    else if(depthM<20) depthEl.textContent='💎 Deep — Diamond & Redstone!';
+    else depthEl.textContent='☠ BEDROCK DEPTH — Emerald & Ancient Ore!';
+  }
+
+  // Update crack animation on held target
+  if(mineHoldTarget!==null){
+    const blk=mine3dBlocks[mineHoldTarget];
+    if(blk&&!blk.mined) updateMineCrack(blk);
+  }
+}
+
+// Jump when Space pressed in mine
+var _origWorldKeyDown_mine=null;
+function mineOnKeyDown(e){
+  if(currentWorld!=='mine')return;
+  if(e.code==='Space'){
+    if(mineOnGround){mineGravity=0.18;mineOnGround=false;}
+  }
+}
+
+// ── MINE CLICK: start hold-to-mine ──
+function startMineClick(){
+  if(minePickaxeBroken){toast('⚒ Pickaxe broken! Answer 5 questions to repair.','');showPickaxeRepairGate();return;}
+  const pl=S.toolLevel&&S.toolLevel.pickaxe||0;
+  if(!pl){toast('You need a Pickaxe! Craft one first.','');return;}
+  worldRaycaster.setFromCamera({x:0,y:0},worldCamera);
+  const hits=worldRaycaster.intersectObjects(worldInteractables,true);
+  const hit=hits.find(h=>h.object.userData.type==='ore'&&h.distance<4);
+  if(!hit)return;
+  const blk=mine3dBlocks[hit.object.userData.oreId];
+  if(!blk||blk.mined)return;
+  mineHoldTarget=blk.id;
+  mineBreakProgress=0;
+  // ms per hit tick depends on ore + pickaxe level
+  const baseMs=blk.oreType.mineMs;
+  const speedMult=getCraftedMineSpeed?getCraftedMineSpeed():1;
+  const pickBonus=1-(Math.min(pl-1,9)*0.08); // each pick level = 8% faster
+  const tickMs=Math.max(80,Math.round(baseMs*pickBonus/speedMult/blk.oreType.hp));
+  clearInterval(mineHoldInterval);
+  mineHoldInterval=setInterval(()=>doMineHit(blk),tickMs);
+  // Show tooltip
+  const depthStr=blk.depth?` (depth ${blk.depth}m)`:''
+  toast('⛏ Mining '+blk.oreType.label+depthStr,'');
+}
+
+function mineHoldStop(){
+  clearInterval(mineHoldInterval);mineHoldInterval=null;
+  if(mineHoldTarget!==null){
+    const blk=mine3dBlocks[mineHoldTarget];
+    if(blk&&!blk.mined)clearMineCrack(blk);
+  }
+  mineHoldTarget=null;mineBreakProgress=0;
+}
+
+function doMineHit(blk){
+  if(!blk||blk.mined){mineHoldStop();return;}
+  blk.hp--;
+  mineBreakProgress=(blk.maxHp-blk.hp)/blk.maxHp;
+  showMineCrack(blk);
+  // PICKAXE SHATTER CHECK
+  const pl=S.toolLevel&&S.toolLevel.pickaxe||1;
+  const baseShatter=blk.oreType.shatterChance;
+  const shatterChance=Math.max(0,baseShatter-(pl-1)*0.01); // better pick = lower chance
+  if(Math.random()<shatterChance){
+    mineHoldStop();
+    minePickaxeBroken=true;
+    toast('💥 Pickaxe shattered! Answer 5 questions to repair it.','gold-toast');
+    particles('💥');
+    showPickaxeRepairGate();
+    return;
+  }
+  if(blk.hp<=0){
+    breakMineBlock(blk);
+    mineHoldStop();
+  }
+}
+
+function showMineCrack(blk){
+  if(!blk.mesh)return;
+  // Darken the block as cracks progress (0→1)
+  const pct=mineBreakProgress;
+  const c=blk.mesh.material;
+  if(c&&c.color){
+    const base=blk.oreType.color;
+    const r=((base>>16)&0xff)/255,g=((base>>8)&0xff)/255,b=(base&0xff)/255;
+    c.color.setRGB(r*(1-pct*.6),g*(1-pct*.6),b*(1-pct*.6));
+  }
+  // Crack overlay geometry
+  if(!blk.crackMesh){
+    const cm=new THREE.Mesh(new THREE.BoxGeometry(1.02,1.02,1.02),
+      new THREE.MeshBasicMaterial({color:0x000000,wireframe:true,transparent:true,opacity:.0}));
+    cm.position.copy(blk.mesh.position);worldScene.add(cm);blk.crackMesh=cm;
+  }
+  if(blk.crackMesh) blk.crackMesh.material.opacity=pct*0.5;
+}
+
+function clearMineCrack(blk){
+  if(!blk||!blk.mesh)return;
+  blk.mesh.material.color.setHex(blk.oreType.color);
+  if(blk.crackMesh){worldScene.remove(blk.crackMesh);blk.crackMesh=null;}
+  mineBreakProgress=0;
+}
+
+function updateMineCrack(blk){
+  if(!blk||blk.mined)return;
+  // Pulse effect while mining
+}
+
+function breakMineBlock(blk){
+  if(!blk||blk.mined)return;
+  blk.mined=true;
+  // Remove from scene
+  worldScene.remove(blk.mesh);
+  if(blk.crackMesh)worldScene.remove(blk.crackMesh);
+  // Remove from block map so player can walk through
+  const p=blk.mesh.position;
+  delete mineBlockMap[mineBlockKey(p.x,p.y,p.z)];
+  // Give loot
+  if(!S.materials)S.materials={};
+  const dropMult=getCraftedDropMult?getCraftedDropMult():1;
+  const loot=blk.oreType.loot;
+  let lootStr='';
+  Object.entries(loot).forEach(([mat,[min,max]])=>{
+    const amt=Math.round((min+Math.floor(Math.random()*(max-min+1)))*dropMult);
+    if(amt>0){S.materials[mat]=(S.materials[mat]||0)+amt;lootStr+='+'+amt+' '+mat+' ';}
+  });
+  // XP
+  if(blk.oreType.xp>0) addXp(blk.oreType.xp);
+  S.blocksMinedTotal=(S.blocksMinedTotal||0)+1;
+  // Toast with ore name
+  toast('⛏ '+blk.oreType.label+' mined! '+lootStr,'green-toast');
+  particles(blk.oreType.id==='diamond'?'💎':blk.oreType.id==='gold'?'🟡':blk.oreType.id==='emerald'?'💚':'⛏');
+  syncHud();
+  // Respawn ore after delay (so cave stays playable)
+  setTimeout(()=>{
+    if(currentWorld!=='mine')return;
+    const depth=blk.depth||0;
+    const newOre=getOreForDepth(depth);
+    const mat=new THREE.MeshLambertMaterial({color:newOre.color});
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(1,1,1),mat);
+    mesh.position.copy(p);worldScene.add(mesh);
+    wEdge(mesh,0x111111,0.08);
+    const id=mine3dBlocks.indexOf(blk);
+    blk.mesh=mesh;blk.oreType=newOre;blk.hp=newOre.hp;
+    blk.maxHp=newOre.hp;blk.mined=false;blk.crackMesh=null;
+    mesh.userData={type:'ore',oreId:id,label:newOre.label,oreType:newOre,depth};
+    worldInteractables=worldInteractables.filter(m=>m.userData.oreId!==id);
+    worldInteractables.push(mesh);
+    mineBlockMap[mineBlockKey(p.x,p.y,p.z)]=true;
+  },8000+depth*500); // deeper = longer respawn
+}
+
+// ── PICKAXE REPAIR GATE ──
+var pickaxeRepairAnswered=0;
+var pickaxeRepairPool=[];
+
+function showPickaxeRepairGate(){
+  pickaxeRepairAnswered=0;
+  pickaxeRepairPool=shuffle([...getPool()]);
+  buildPickaxeRepairOverlay();
+}
+function buildPickaxeRepairOverlay(){
+  let ol=document.getElementById('pickaxe-repair-overlay');
+  if(!ol){
+    ol=document.createElement('div');
+    ol.id='pickaxe-repair-overlay';
+    ol.style.cssText='position:fixed;inset:0;background:rgba(20,8,4,.97);display:flex;align-items:center;justify-content:center;z-index:9500;padding:20px';
+    document.body.appendChild(ol);
+  }
+  ol.innerHTML=`
+    <div style="width:min(520px,96vw);display:flex;flex-direction:column;gap:14px;text-align:center">
+      <div style="font-size:48px">⚒️💥</div>
+      <div style="font-family:Fredoka One,cursive;font-size:28px;color:#ff6644">Pickaxe Shattered!</div>
+      <div style="font-size:14px;color:rgba(255,255,255,.6)">Answer <strong style="color:#ffb800">5 questions correctly</strong> to repair your pickaxe.</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin:4px 0" id="repair-pips">
+        ${[0,1,2,3,4].map(i=>'<div style="width:24px;height:24px;border-radius:50%;border:2px solid rgba(255,100,0,.4);background:transparent;transition:all .2s"></div>').join('')}
+      </div>
+      <div id="repair-q-box" style="background:rgba(255,255,255,.06);border:2px solid rgba(255,100,0,.3);border-radius:18px;padding:20px">
+        <div id="repair-q-text" style="font-family:Fredoka One,cursive;font-size:18px;color:#fff;margin-bottom:14px"></div>
+        <div id="repair-opts" style="display:flex;flex-direction:column;gap:8px"></div>
+        <div id="repair-feedback" style="font-family:Fredoka One,cursive;font-size:17px;min-height:26px;margin-top:10px"></div>
+      </div>
+    </div>`;
+  ol.style.display='flex';
+  loadRepairQuestion();
+}
+function loadRepairQuestion(){
+  const q=pickaxeRepairPool[pickaxeRepairAnswered%pickaxeRepairPool.length];
+  document.getElementById('repair-q-text').textContent=q.q;
+  const opts=document.getElementById('repair-opts');
+  opts.innerHTML='';
+  q.opts.forEach((opt,i)=>{
+    const btn=document.createElement('button');
+    btn.style.cssText='font-family:Fredoka One,cursive;font-size:15px;background:rgba(255,255,255,.08);border:2px solid rgba(255,255,255,.15);border-radius:12px;padding:11px 14px;color:#fff;cursor:pointer;text-align:left;width:100%';
+    btn.textContent=opt;
+    btn.onclick=()=>answerRepairQ(i,q.ans,btn,opts);
+    opts.appendChild(btn);
+  });
+  document.getElementById('repair-feedback').textContent='';
+}
+function answerRepairQ(idx,correct,btn,opts){
+  opts.querySelectorAll('button').forEach(b=>b.disabled=true);
+  const fb=document.getElementById('repair-feedback');
+  if(idx===correct){
+    btn.style.background='rgba(76,175,80,.35)';btn.style.borderColor='#4caf50';
+    fb.textContent='✅ Correct!';fb.style.color='#43c47a';
+    pickaxeRepairAnswered++;
+    // Update pips
+    const pips=document.getElementById('repair-pips').children;
+    if(pips[pickaxeRepairAnswered-1]){
+      pips[pickaxeRepairAnswered-1].style.background='#43c47a';
+      pips[pickaxeRepairAnswered-1].style.borderColor='#43c47a';
+    }
+    if(pickaxeRepairAnswered>=5){
+      fb.textContent='🔨 Pickaxe Repaired!';
+      setTimeout(()=>{
+        document.getElementById('pickaxe-repair-overlay').style.display='none';
+        minePickaxeBroken=false;
+        toast('✅ Pickaxe repaired! Keep mining!','green-toast');
+        particles('⚒️');
+      },800);
+    } else {
+      setTimeout(loadRepairQuestion,700);
+    }
+  } else {
+    btn.style.background='rgba(244,67,54,.2)';btn.style.borderColor='#f44336';
+    opts.querySelectorAll('button')[correct].style.background='rgba(76,175,80,.35)';
+    opts.querySelectorAll('button')[correct].style.borderColor='#4caf50';
+    fb.textContent='❌ Wrong — try again!';fb.style.color='#f44336';
+    setTimeout(()=>{
+      opts.querySelectorAll('button').forEach(b=>{
+        b.style.background='rgba(255,255,255,.08)';
+        b.style.borderColor='rgba(255,255,255,.15)';b.disabled=false;
+      });
+      fb.textContent='';
+    },900);
+  }
+}
+
+function showMineHud(){
+  const el=document.getElementById('mine-depth-hud');
+  if(el) el.style.display='block';
+}
+
 
 function buildForest3D(){
   worldScene.background=new THREE.Color(0x72c4ee);worldScene.fog=new THREE.Fog(0x72c4ee,25,80);
@@ -4179,10 +4560,21 @@ function chopTreeClick(){
   if(tree.hp<=0){
     tree.chopped=true;worldInteractables=worldInteractables.filter(m=>m.userData.treeId!==tree.id);
     treesChoppedThisRound++;fallTree3D(tree.group,tree.x,tree.z);
-    const wg=tree.def.wood+(al>0?al-1:0);S.materials.wood=(S.materials.wood||0)+wg;
+    // Give loot based on tree.def.loot with axe bonus
+    if(!S.materials)S.materials={};
+    let lootStr='';
+    const alBonus=Math.max(1,1+Math.floor((al-1)*0.3)); // axe gives bonus drops
+    Object.entries(tree.def.loot||{wood:[1,2]}).forEach(([mat,[min,max]])=>{
+      const amt=min+Math.floor(Math.random()*(max-min+1))+Math.floor(alBonus*0.5);
+      S.materials[mat]=(S.materials[mat]||0)+amt;
+      lootStr+='+'+amt+' '+mat+' ';
+    });
+    S.silver=(S.silver||0)+(tree.def.silver||4);
+    toast('🌲 '+tree.def.label+' chopped! '+lootStr+'+'+tree.def.silver+' silver','green-toast');
     S.treesChoppedTotal=(S.treesChoppedTotal||0)+1;
-    if(S.treesChoppedTotal%10===0){const xg=10+(al>0?(al-1)*4:0);addXp(xg,'forest');toast('+'+xg+' XP!','green-toast');}
-    if(al>0)addToolXp('axe',tree.def.xp);
+    const xpAmt=tree.def.xp||8;
+    addXp(xpAmt,'forest');
+    if(al>0)addToolXp('axe',xpAmt);
     if(tree.def.id==='magic'||tree.def.id==='ancient')toast('Rare! +'+wg+' wood','gold-toast');
     else toast('+'+wg+' wood','green-toast');
     syncHud();updateWorldHud();updateForest3dHud();saveProgress();
