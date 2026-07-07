@@ -6768,11 +6768,7 @@ async function endWorldPvp(){
 // Hook into game score updates to auto-update PvP score
 const _origAddXp=addXp;
 // Also hook mob kills for arena pvp
-const _origHitMob=hitMob;
-function hitMob(mob,dmg,isCrit){
-  _origHitMob(mob,dmg,isCrit);
-  // If pvp active in arena, score updates automatically via getScore()
-}
+// hitMob hook removed (was causing infinite recursion)
 
 
 function showInstrTab(tab){
