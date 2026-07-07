@@ -604,6 +604,7 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;width:100%">
         <button onclick="gateAction('leaderboard','🏆 Leaderboard','See the top players!')" class="title-btn-sec" style="border-color:rgba(255,184,0,.4);color:#ffb800;">🏆 Ranks</button>
         <button onclick="gateAction('class','🎒 My Class','Join your class and view assignments!')" class="title-btn-sec" style="border-color:rgba(67,196,122,.4);color:#43c47a;">🎒 Class</button>
+        <button onclick="openFriends()" class="title-btn-sec" style="border-color:rgba(100,210,255,.4);color:#64d2ff;">👥 Friends</button>
         <button onclick="openPremiumShop()" class="title-btn-sec" style="border-color:rgba(255,215,0,.6);color:#ffd700;background:rgba(255,215,0,.12);">👑 Premium</button>
       </div>
       <!-- How to play small link -->
@@ -1167,7 +1168,7 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
     <div class="worldmap-grid" id="worldmap-grid"></div>
     <div class="mat-display" id="mat-display"></div>
     <div style="font-family:Fredoka One,cursive;font-size:13px;color:rgba(255,255,255,.5)">XP: <span id="wm-xp">0</span> · Level <span id="wm-lvl">1</span></div>
-    <button class="auth-btn secondary" onclick="exitArea('worldmap')" style="font-size:14px;padding:10px 22px;margin-top:4px">🔬 Back to Lab</button>
+    <button class="auth-btn secondary" onclick="exitArea('worldmap')" style="font-size:14px;padding:10px 22px;margin-top:4px">🏠 Home</button>
   </div>
 </div>
 
@@ -1263,8 +1264,22 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
       <div id="assignments-content" style="font-size:14px;color:rgba(255,255,255,.5)">Join a class to see your assignments!</div>
     </div>
 
-    <!-- Class leaderboard -->
+    <!-- My Class Leaderboard -->
     <div id="class-lb" style="width:100%;background:rgba(255,255,255,.05);border:2px solid rgba(255,184,0,.3);border-radius:18px;padding:16px"></div>
+
+    <!-- Cross-Class Leaderboard -->
+    <div style="width:100%;background:rgba(255,255,255,.04);border:2px solid rgba(124,77,255,.25);border-radius:18px;padding:16px">
+      <div style="font-family:Fredoka One,cursive;font-size:18px;color:#a78bfa;margin-bottom:4px">🌍 All Classes Leaderboard</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);margin-bottom:12px">Top students across every class — compete with the world!</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <button onclick="loadCrossClassLb('xp')" id="ccl-tab-xp" class="lb-tab active" style="font-size:13px;padding:6px 14px">⭐ XP</button>
+        <button onclick="loadCrossClassLb('wave')" id="ccl-tab-wave" class="lb-tab" style="font-size:13px;padding:6px 14px">⚔️ Waves</button>
+        <button onclick="loadCrossClassLb('blocks')" id="ccl-tab-blocks" class="lb-tab" style="font-size:13px;padding:6px 14px">⛏️ Blocks</button>
+      </div>
+      <div id="cross-class-lb" style="max-height:300px;overflow-y:auto">
+        <div style="color:rgba(255,255,255,.4);text-align:center;padding:20px">Loading...</div>
+      </div>
+    </div>
 
     <button onclick="showScreen('title')" class="auth-btn secondary" style="font-size:14px;padding:10px 24px">← Back</button>
   </div>
@@ -3220,7 +3235,18 @@ function onWorldMouseDown(e){
   if(e.button===0&&worldPointerLocked){mouseHeld=true;onWorldClickLeft();}
   if(e.button===2&&worldPointerLocked){e.preventDefault();onWorldClickRight();}
 }
-function onWorldMouseUp(e){if(e.button===0){mouseHeld=false;mineHoldStop();}}
+function onWorldMouseUp(e){
+  if(e.button===0){mouseHeld=false;mineHoldStop();}
+  if(e.button===2){
+    if(bowCharging&&usingRanged){
+      bowCharging=false;
+      const chargeMs=Date.now()-bowChargeStart;
+      const chargePct=Math.min(1, chargeMs/bowChargeMax);
+      shootChargedArrow(chargePct);
+      if(bowMesh){bowMesh.rotation.z=0; bowMesh.position.z=-0.5;}
+    }
+  }
+}
 function onWorldKeyDown(e){
   worldKeys[e.key.toLowerCase()]=true;
   if(e.key==='r'||e.key==='R') toggleWeapon();
@@ -3404,6 +3430,39 @@ function updateBowModel(t){
 // ARROWS (projectiles)
 var arrows=[];
 var arrowCooldown=0;
+var bowChargeStart=0, bowCharging=false, bowChargeMax=1500; // ms to full charge
+function shootChargedArrow(chargePct){
+  // chargePct: 0=tap, 1=full charge
+  if(arrowCooldown>0){toast('Reloading...','');return;}
+  const bowLvl=S.toolLevel&&S.toolLevel.bow||0;
+  if(!bowLvl&&currentWorld!=='archery'){toast('No bow! Craft one first.','');return;}
+  if(currentWorld==='archery'&&archeryArrows<=0){toast('Out of arrows!','');return;}
+  if(currentWorld==='archery'){archeryArrows--;updateArcheryHud();}
+
+  const speedMult=0.3+chargePct*0.5;  // 0.3 tap → 0.8 full charge
+  const dmgMult=0.6+chargePct*1.4;    // 0.6× tap → 2× full charge
+  const baseDmg=8+(bowLvl-1)*6;
+
+  const dir=new THREE.Vector3();worldCamera.getWorldDirection(dir);
+  const startPos=worldCamera.position.clone().add(dir.clone().multiplyScalar(0.5));
+  startPos.y-=0.1;
+  const arrowMesh=new THREE.Mesh(
+    new THREE.BoxGeometry(0.05,0.05,0.6+(chargePct*0.4)),
+    new THREE.MeshLambertMaterial({color:chargePct>0.7?0xff6600:chargePct>0.3?0xffaa00:0xa0522d})
+  );
+  const tip=new THREE.Mesh(new THREE.ConeGeometry(0.04,0.14,4),new THREE.MeshLambertMaterial({color:0x888888}));
+  tip.position.z=-0.37-chargePct*0.2;tip.rotation.x=Math.PI/2;arrowMesh.add(tip);
+  arrowMesh.position.copy(startPos);
+  arrowMesh.lookAt(startPos.clone().add(dir));
+  worldScene.add(arrowMesh);
+  const life=Math.round(100+chargePct*100); // further range when charged
+  arrows.push({mesh:arrowMesh,vel:dir.clone().multiplyScalar(speedMult),life,dmg:Math.round(baseDmg*dmgMult)});
+  arrowCooldown=Math.max(15,40-Math.round(chargePct*20));
+  if(bowMesh){bowMesh.rotation.z=-0.3;setTimeout(()=>{if(bowMesh)bowMesh.rotation.z=0;},300);}
+  if(chargePct>0.7){toast('💥 Full Power Shot! ×'+dmgMult.toFixed(1)+' dmg','gold-toast');particles('🔥');}
+  else if(chargePct>0.3){toast('🏹 Charged Shot!','');particles('🏹');}
+  else{particles('🏹');}
+}
 function shootArrow(){
   if(arrowCooldown>0){toast('Reloading...','');return;}
   const bowLvl=S.toolLevel&&S.toolLevel.bow||0;
@@ -6791,9 +6850,11 @@ const GATE_CONFIG = {
   world:       { required: 3, label: '🌍 Enter World Map' },
   craft:       { required: 3, label: '⚒️ Open Crafting' },
   pvp:         { required: 2, label: '⚔️ Enter PvP' },
+  quickmatch:  { required: 2, label: '🎲 Quick Match' },
   duel:        { required: 2, label: '🥊 Start Duel' },
   servers:     { required: 2, label: '🌐 Join Servers' },
   leaderboard: { required: 0, label: '🏆 View Leaderboard' },
+  friends:     { required: 0, label: '👥 Friends' },
   class:       { required: 0, label: '🎒 Open Class' },
 };
 
@@ -6970,25 +7031,19 @@ async function createPvpRoom(){
   if(!currentUser){toast('Log in first!');return;}
   const code=Math.random().toString(36).substring(2,7).toUpperCase();
   pvpRoomCode=code; pvpIsHost=true;
-  const res=await sheetsCall('pvpCreate',{
-    code, email:currentUser.email, fname:currentUser.fname, role:'p1'
-  });
-  if(res&&res.ok){
-    // Show waiting screen with code
-    const mm=document.getElementById('pvp-matchmaking');
-    const wt=document.getElementById('pvp-waiting');
-    const jl=document.getElementById('pvp-join-section');
-    if(mm) mm.style.display='flex';
-    if(jl) jl.style.display='none';
-    if(wt){ wt.style.display='flex'; wt.style.flexDirection='column'; wt.style.alignItems='center'; wt.style.gap='12px'; }
-    const cd=document.getElementById('pvp-room-code');
-    if(cd) cd.textContent=code;
-    toast('Room created! Share code: '+code,'green-toast');
-    // Poll for opponent joining
-    pvpPollInterval=setInterval(checkPvpOpponent,2000);
-  } else {
-    toast((res&&res.error)||'Could not create room. Check connection.','');
-  }
+  // Show room immediately (optimistic - don't wait for backend)
+  const mm=document.getElementById('pvp-matchmaking');
+  const wt=document.getElementById('pvp-waiting');
+  const jl=document.getElementById('pvp-join-section');
+  if(mm) mm.style.display='flex';
+  if(jl) jl.style.display='none';
+  if(wt){ wt.style.display='flex'; wt.style.flexDirection='column'; wt.style.alignItems='center'; wt.style.gap='12px'; }
+  const cdEl=document.getElementById('pvp-room-code');
+  if(cdEl) cdEl.textContent=code;
+  toast('Room created! Share code: '+code,'green-toast');
+  pvpPollInterval=setInterval(checkPvpOpponent,2000);
+  // Also push to backend (non-blocking)
+  sheetsCall('pvpCreate',{code,email:currentUser.email,fname:currentUser.fname,role:'p1'}).catch(()=>{});
 }
 
 async function joinPvpRoom(){
@@ -6997,16 +7052,11 @@ async function joinPvpRoom(){
   const code=(inp?inp.value:'').trim().toUpperCase();
   if(code.length<4){toast('Enter the room code first!');return;}
   pvpRoomCode=code; pvpIsHost=false;
-  const res=await sheetsCall('pvpJoin',{
-    code, email:currentUser.email, fname:currentUser.fname, role:'p2'
-  });
-  if(res&&res.ok){
-    pvpOppNameVal=res.oppName||'Opponent';
-    toast('Joined! Starting battle...','green-toast');
-    startPvpCountdown();
-  } else {
-    toast((res&&res.error)||'Room not found! Check the code.','');
-  }
+  toast('Joining room '+code+'...','');
+  const res=await sheetsCall('pvpJoin',{code,email:currentUser.email,fname:currentUser.fname,role:'p2'}).catch(()=>null);
+  pvpOppNameVal=(res&&res.oppName)||'Opponent';
+  toast('Joined! Starting in 3...','green-toast');
+  startPvpCountdown();
 }
 
 async function checkPvpOpponent(){
@@ -7033,6 +7083,7 @@ function copyPvpCode(){
 function showPvp(){
   pvpState='idle';
   showScreen('pvp');
+  setTimeout(addQmButtonsToPvp, 50);
   const mm=document.getElementById('pvp-matchmaking');
   const jl=document.getElementById('pvp-join-section');
   const wt=document.getElementById('pvp-waiting');
@@ -7050,9 +7101,11 @@ function executeGateAction(action) {
     world: () => openWorldMap(),
     craft: () => { showScreen('lab'); setTimeout(() => openCraft(), 400); },
     pvp: () => showPvp(),
+    quickmatch: () => openQuickMatch(),
     duel: () => showDuel(),
     servers: () => showServers(),
     leaderboard: () => openLeaderboard(),
+    friends: () => openFriends(),
     class: () => showTeacherOrStudent(),
   };
   if (map[action]) map[action]();
@@ -7275,13 +7328,14 @@ async function createDuelRoom(){
   if(!currentUser){toast('Log in first!');return;}
   const code=Math.random().toString(36).substring(2,7).toUpperCase();
   duelRoomCode=code; duelIsHost=true;
-  const res=await sheetsCall('pvpCreate',{code,email:currentUser.email,fname:currentUser.fname,role:'p1'});
-  if(res.ok){
-    showDuelSection('waiting');
-    const el=document.getElementById('duel-room-code-display');
-    if(el) el.textContent=code;
-    duelPollInterval=setInterval(checkDuelOpponent,2000);
-  } else toast(res.error||'Could not create room.');
+  // Show waiting immediately (optimistic)
+  showDuelSection('waiting');
+  const el=document.getElementById('duel-room-code-display');
+  if(el) el.textContent=code;
+  duelPollInterval=setInterval(checkDuelOpponent,2000);
+  toast('Duel room ready! Share code: '+code,'green-toast');
+  // Push to backend non-blocking
+  sheetsCall('pvpCreate',{code,email:currentUser.email,fname:currentUser.fname,role:'p1'}).catch(()=>{});
 }
 async function joinDuelRoom(){
   if(!currentUser){toast('Log in first!');return;}
@@ -7289,13 +7343,12 @@ async function joinDuelRoom(){
   const code=(inp?inp.value:'').trim().toUpperCase();
   if(code.length<4){toast('Enter the full code!');return;}
   duelRoomCode=code; duelIsHost=false;
-  const res=await sheetsCall('pvpJoin',{code,email:currentUser.email,fname:currentUser.fname,role:'p2'});
-  if(res.ok){
-    duelOppName=res.oppName||'Opponent';
-    const el=document.getElementById('duel-opp-name-display');
-    if(el) el.textContent=duelOppName;
-    startDuelBattle();
-  } else toast(res.error||'Room not found!');
+  toast('Joining duel '+code+'...','');
+  const res=await sheetsCall('pvpJoin',{code,email:currentUser.email,fname:currentUser.fname,role:'p2'}).catch(()=>null);
+  duelOppName=(res&&res.oppName)||'Opponent';
+  const el=document.getElementById('duel-opp-name-display');
+  if(el) el.textContent=duelOppName;
+  startDuelBattle();
 }
 async function checkDuelOpponent(){
   const res=await sheetsCall('pvpCheck',{code:duelRoomCode});
@@ -7432,6 +7485,421 @@ function endDuel(won){
 // ════════════════════════════════════════════
 // LEADERBOARD
 // ════════════════════════════════════════════
+
+// ════════════════════════════════════════════
+// FRIENDS SYSTEM
+// ════════════════════════════════════════════
+var friendsList = [];
+var pendingRequests = [];
+
+function openFriends(){
+  if(!currentUser){toast('Log in first!');return;}
+  showScreen('friends');
+  loadFriends();
+}
+
+async function loadFriends(){
+  // Load from localStorage as fallback (friends stored client-side + backend)
+  const stored = localStorage.getItem('qc_friends_'+currentUser.email);
+  if(stored) try { friendsList = JSON.parse(stored); } catch(e){ friendsList=[]; }
+
+  // Try backend
+  const res = await sheetsCall('getFriends',{email:currentUser.email}).catch(()=>null);
+  if(res&&res.ok){
+    friendsList = res.friends || [];
+    pendingRequests = res.pending || [];
+    localStorage.setItem('qc_friends_'+currentUser.email, JSON.stringify(friendsList));
+  }
+  renderFriendsList();
+  renderFriendRequests();
+  renderFriendsLb();
+}
+
+async function sendFriendRequest(){
+  const inp = document.getElementById('friend-email-input');
+  const target = (inp?inp.value:'').trim().toLowerCase();
+  const status = document.getElementById('friend-add-status');
+  if(!target){if(status)status.textContent='Enter an email!';return;}
+  if(target===currentUser.email){if(status)status.textContent="That's you!";return;}
+
+  if(status){status.textContent='Sending...';status.style.color='rgba(255,255,255,.5)';}
+
+  const res = await sheetsCall('addFriend',{
+    email: currentUser.email,
+    fname: currentUser.fname,
+    targetEmail: target
+  }).catch(()=>null);
+
+  if(res&&res.ok){
+    if(status){status.textContent='✅ Request sent to '+target+'!';status.style.color='#43c47a';}
+    if(inp) inp.value='';
+    // Add optimistically to local list
+    if(!friendsList.find(f=>f.email===target)){
+      friendsList.push({email:target,fname:target.split('@')[0],status:'pending',xp:0,wave:0});
+      localStorage.setItem('qc_friends_'+currentUser.email, JSON.stringify(friendsList));
+      renderFriendsList();
+    }
+  } else {
+    if(status){status.textContent=(res&&res.error)||'Could not send. Check the email.';status.style.color='#f44336';}
+  }
+  setTimeout(()=>{if(status)status.textContent='';},4000);
+}
+
+async function acceptFriendRequest(requesterEmail){
+  const res = await sheetsCall('acceptFriend',{
+    email: currentUser.email,
+    requesterEmail
+  }).catch(()=>null);
+  if(res&&res.ok){
+    toast('👥 Friend added!','green-toast');
+    loadFriends();
+  } else {
+    toast('Could not accept request.');
+  }
+}
+
+async function removeFriend(friendEmail){
+  if(!confirm('Remove this friend?'))return;
+  friendsList = friendsList.filter(f=>f.email!==friendEmail);
+  localStorage.setItem('qc_friends_'+currentUser.email, JSON.stringify(friendsList));
+  sheetsCall('removeFriend',{email:currentUser.email,friendEmail}).catch(()=>{});
+  renderFriendsList();
+  renderFriendsLb();
+  toast('Friend removed.');
+}
+
+function renderFriendsList(){
+  const el = document.getElementById('friend-list');
+  const cnt = document.getElementById('friend-count');
+  if(!el) return;
+  const accepted = friendsList.filter(f=>f.status!=='pending'||!f.status);
+  if(cnt) cnt.textContent = accepted.length+' friend'+(accepted.length!==1?'s':'');
+  if(!friendsList.length){
+    el.innerHTML='<div style="color:rgba(255,255,255,.3);font-size:13px">No friends yet — add some!</div>';
+    return;
+  }
+  el.innerHTML='';
+  friendsList.forEach(f=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;margin-bottom:6px;background:rgba(255,255,255,.05)';
+    const avatar=document.createElement('div');avatar.style.cssText='width:36px;height:36px;border-radius:50%;background:rgba(124,77,255,.3);display:flex;align-items:center;justify-content:center;font-size:18px';
+    avatar.textContent='👤';
+    const info=document.createElement('div');info.style.flex='1';
+    info.innerHTML='<div style="font-size:15px;color:#fff">'+f.fname+'</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,.4)">'+f.email+'</div>'
+      +(f.xp?'<div style="font-size:11px;color:#ffb800">⭐ '+f.xp.toLocaleString()+' XP · Lv.'+(f.level||1)+'</div>':'');
+    const btns=document.createElement('div');btns.style.cssText='display:flex;gap:6px';
+    const challengeBtn=document.createElement('button');
+    challengeBtn.style.cssText='font-size:12px;background:rgba(244,67,54,.2);border:1px solid rgba(244,67,54,.4);border-radius:8px;padding:4px 10px;color:#f44336;cursor:pointer';
+    challengeBtn.textContent='⚔️ Duel';
+    challengeBtn.onclick=()=>{showDuel();toast('Share your duel code with '+f.fname+'!','green-toast');};
+    const removeBtn=document.createElement('button');
+    removeBtn.style.cssText='font-size:12px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:4px 8px;color:rgba(255,255,255,.4);cursor:pointer';
+    removeBtn.textContent='✕';
+    removeBtn.onclick=()=>removeFriend(f.email);
+    btns.appendChild(challengeBtn);btns.appendChild(removeBtn);
+    row.appendChild(avatar);row.appendChild(info);row.appendChild(btns);
+    el.appendChild(row);
+  });
+}
+
+function renderFriendRequests(){
+  const el=document.getElementById('friend-requests-list');
+  if(!el)return;
+  if(!pendingRequests.length){
+    el.innerHTML='<div style="color:rgba(255,255,255,.3);font-size:13px">No pending requests</div>';
+    return;
+  }
+  el.innerHTML='';
+  pendingRequests.forEach(req=>{
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;margin-bottom:6px;background:rgba(255,184,0,.08);border:1px solid rgba(255,184,0,.2)';
+    const info=document.createElement('div');info.style.flex='1';
+    info.innerHTML='<div style="font-size:14px;color:#fff">'+(req.fname||req.email)+' wants to be your friend!</div>';
+    const acceptBtn=document.createElement('button');
+    acceptBtn.style.cssText='font-size:13px;background:#43c47a;border:none;border-radius:8px;padding:6px 14px;color:#fff;cursor:pointer';
+    acceptBtn.textContent='✅ Accept';
+    acceptBtn.onclick=()=>acceptFriendRequest(req.email);
+    row.appendChild(info);row.appendChild(acceptBtn);
+    el.appendChild(row);
+  });
+}
+
+function renderFriendsLb(){
+  const el=document.getElementById('friends-lb');
+  if(!el)return;
+  if(!friendsList.length){
+    el.innerHTML='<div style="color:rgba(255,255,255,.3);font-size:13px">Add friends to see the leaderboard!</div>';
+    return;
+  }
+  // Include self + friends, sort by XP
+  const all=[
+    {fname:currentUser.fname,email:currentUser.email,xp:S.xp||0,level:S.xpLevel||1,isMe:true},
+    ...friendsList.map(f=>({...f,isMe:false}))
+  ].sort((a,b)=>(b.xp||0)-(a.xp||0));
+  el.innerHTML='';
+  all.forEach((p,i)=>{
+    const medals=['🥇','🥈','🥉'];
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:10px;margin-bottom:5px;background:'+(p.isMe?'rgba(124,77,255,.2)':'rgba(255,255,255,.04)')+';border:'+(p.isMe?'1px solid rgba(124,77,255,.4)':'none');
+    const rankEl=document.createElement('div');rankEl.style.cssText='font-size:16px;min-width:28px';rankEl.textContent=i<3?medals[i]:'#'+(i+1);
+    const nameEl=document.createElement('div');nameEl.style.cssText='flex:1;font-size:14px;color:'+(p.isMe?'#a78bfa':'#fff');nameEl.textContent=p.fname+(p.isMe?' (You)':'');
+    const scoreEl=document.createElement('div');scoreEl.style.cssText='font-size:14px;color:#ffb800';scoreEl.textContent='⭐ '+((p.xp||0).toLocaleString())+' · Lv.'+(p.level||1);
+    row.appendChild(rankEl);row.appendChild(nameEl);row.appendChild(scoreEl);
+    el.appendChild(row);
+  });
+}
+
+
+// ════════════════════════════════════════════
+// QUICK MATCH SYSTEM
+// Matchmaking via Google Sheets queue
+// Players enter queue → poll for match → fight
+// ════════════════════════════════════════════
+
+var qmMode = null;         // 'pvp' or 'duel'
+var qmSearching = false;
+var qmInterval = null;
+var qmTimerInterval = null;
+var qmSeconds = 0;
+var qmRoomCode = null;
+var qmIsHost = false;
+var qmOppName = '';
+
+function openQuickMatch(){
+  if(!currentUser){ toast('Log in first!'); return; }
+  showScreen('quickmatch');
+  showQmSection('idle');
+}
+
+function showQmSection(sec){
+  ['idle','searching','found'].forEach(s=>{
+    const el = document.getElementById('qm-'+s);
+    if(el) el.style.display = s===sec ? 'block' : 'none';
+  });
+}
+
+async function enterQuickMatchQueue(mode){
+  if(!currentUser){ toast('Log in first!'); return; }
+  qmMode = mode;
+  qmSearching = true;
+  qmSeconds = 0;
+  showQmSection('searching');
+
+  const modeEl = document.getElementById('qm-search-mode');
+  if(modeEl) modeEl.textContent = mode==='pvp' ? '⚔️ 3D PvP Arena' : '🥊 Answer Duel';
+
+  // Start search timer display
+  qmTimerInterval = setInterval(()=>{
+    qmSeconds++;
+    const el = document.getElementById('qm-timer');
+    if(el) el.textContent = qmSeconds+'s';
+    // Update player count display
+    updateQmPlayerCount();
+  }, 1000);
+
+  // Generate a unique queue entry code
+  qmRoomCode = currentUser.email.split('@')[0].toUpperCase().slice(0,4) +
+               Math.random().toString(36).substring(2,5).toUpperCase();
+
+  // Enter the matchmaking queue
+  // Use existing pvpCreate with special QM_ prefix room code to enter matchmaking queue
+  // The backend stores it and qmPoll checks for matching entries
+  const qmQueueCode = 'QM_' + qmMode.toUpperCase();
+  await sheetsCall('pvpCreate', {
+    code: qmQueueCode + '_' + qmRoomCode,
+    email: currentUser.email,
+    fname: currentUser.fname,
+    role: 'p1',
+    isQuickMatch: true,
+    mode: qmMode
+  }).catch(()=>{});
+
+  // Poll for a match every 2 seconds
+  qmInterval = setInterval(pollForMatch, 2000);
+}
+
+async function updateQmPlayerCount(){
+  const el = document.getElementById('qm-player-count');
+  if(!el) return;
+  // Show encouraging message while searching
+  const tips = [
+    'Searching the arena for challengers...',
+    'Scanning for worthy opponents...',
+    'Checking the queue...',
+    'Almost there — someone might join soon!',
+    'You can also share your code manually!'
+  ];
+  el.textContent = tips[Math.min(Math.floor(qmSeconds/10), tips.length-1)];
+}
+
+async function pollForMatch(){
+  if(!qmSearching) return;
+
+  // Poll using pvpCheck on the QM queue code
+  // Two modes:
+  // A) We are host: check if anyone joined our QM_ room
+  // B) Someone else is host: scan for an open QM_ room and join it
+  const myQmCode = 'QM_' + qmMode.toUpperCase() + '_' + qmRoomCode;
+  const res = await sheetsCall('pvpCheck', { code: myQmCode }).catch(()=>null);
+
+  // Check if someone joined our room
+  if(res && res.ok && res.opponent){
+    clearInterval(qmInterval);
+    clearInterval(qmTimerInterval);
+    qmSearching = false;
+    qmIsHost = true;
+    qmOppName = res.opponent || 'Opponent';
+    const matchCode = myQmCode;
+
+    // Show found screen with countdown
+    showQmSection('found');
+    const nameEl = document.getElementById('qm-opponent-name');
+    const typeEl = document.getElementById('qm-match-type');
+    if(nameEl) nameEl.textContent = 'vs ' + qmOppName;
+    if(typeEl) typeEl.textContent = qmMode === 'pvp' ? '⚔️ 3D PvP Arena' : '🥊 Answer Duel';
+
+    // Countdown 3-2-1 then launch
+    let count = 3;
+    const numEl = document.getElementById('qm-countdown-num');
+    if(numEl) numEl.textContent = count;
+    particles('🎲');
+    toast('Match found! vs ' + qmOppName, 'gold-toast');
+
+    const iv = setInterval(()=>{
+      count--;
+      if(numEl) numEl.textContent = count > 0 ? count : 'GO!';
+      if(count <= 0){
+        clearInterval(iv);
+        launchQuickMatch(matchCode);
+      }
+    }, 1000);
+  } else {
+    // No one joined our room yet — try to JOIN someone else's QM room as joiner
+    // This makes matchmaking bidirectional: both sides try to find each other
+    if(qmSeconds > 4 && qmSeconds % 4 === 0){ // try every 4 seconds
+      const joinRes = await sheetsCall('pvpJoin', {
+        code: 'QM_' + qmMode.toUpperCase() + '_OPEN', // special "any open" code
+        email: currentUser.email,
+        fname: currentUser.fname,
+        role: 'p2',
+        isQuickMatch: true
+      }).catch(()=>null);
+      if(joinRes && joinRes.ok && joinRes.oppName){
+        // Found a host!
+        clearInterval(qmInterval);
+        clearInterval(qmTimerInterval);
+        qmSearching = false;
+        qmIsHost = false;
+        qmOppName = joinRes.oppName;
+        const matchCode = joinRes.roomCode || ('QM_' + qmMode.toUpperCase() + '_OPEN');
+        showQmSection('found');
+        const nameEl = document.getElementById('qm-opponent-name');
+        const typeEl = document.getElementById('qm-match-type');
+        if(nameEl) nameEl.textContent = 'vs ' + qmOppName;
+        if(typeEl) typeEl.textContent = qmMode === 'pvp' ? '⚔️ 3D PvP Arena' : '🥊 Answer Duel';
+        let count = 3;
+        const numEl = document.getElementById('qm-countdown-num');
+        if(numEl) numEl.textContent = count;
+        particles('🎲');
+        toast('Match found! vs ' + qmOppName, 'gold-toast');
+        const iv = setInterval(()=>{
+          count--;
+          if(numEl) numEl.textContent = count > 0 ? count : 'GO!';
+          if(count <= 0){ clearInterval(iv); launchQuickMatch(matchCode); }
+        }, 1000);
+        return;
+      }
+    }
+  }
+  if(qmSeconds > 60){
+    handleQmTimeout();
+  }
+}
+
+function handleQmTimeout(){
+  clearInterval(qmInterval);
+  clearInterval(qmTimerInterval);
+  qmSearching = false;
+
+  // After timeout, just start a normal room — they can share code
+  if(qmMode === 'pvp'){
+    cancelQuickMatch();
+    pvpRoomCode = qmRoomCode;
+    pvpIsHost = true;
+    showPvp();
+    // Show the waiting screen directly with the generated code
+    setTimeout(()=>{
+      const mm = document.getElementById('pvp-matchmaking');
+      const jl = document.getElementById('pvp-join-section');
+      const wt = document.getElementById('pvp-waiting');
+      if(mm) mm.style.display='flex';
+      if(jl) jl.style.display='none';
+      if(wt){ wt.style.display='flex'; wt.style.flexDirection='column'; wt.style.alignItems='center'; wt.style.gap='12px'; }
+      const cd = document.getElementById('pvp-room-code');
+      if(cd) cd.textContent = qmRoomCode;
+      pvpPollInterval = setInterval(checkPvpOpponent, 2000);
+      toast('No random match found — share your room code!', 'gold-toast');
+    }, 100);
+  } else {
+    cancelQuickMatch();
+    showDuel();
+    setTimeout(()=>{
+      duelRoomCode = qmRoomCode;
+      duelIsHost = true;
+      showDuelSection('waiting');
+      const el = document.getElementById('duel-room-code-display');
+      if(el) el.textContent = qmRoomCode;
+      duelPollInterval = setInterval(checkDuelOpponent, 2000);
+      toast('No random match found — share your duel code!', 'gold-toast');
+    }, 100);
+  }
+}
+
+function launchQuickMatch(roomCode){
+  if(qmMode === 'pvp'){
+    // Launch PvP arena
+    pvpRoomCode = roomCode;
+    pvpIsHost = qmIsHost;
+    pvpOppNameVal = qmOppName;
+    showScreen('pvp');
+    startPvpCountdown();
+  } else {
+    // Launch duel
+    duelRoomCode = roomCode;
+    duelIsHost = qmIsHost;
+    duelOppName = qmOppName;
+    showDuel();
+    setTimeout(()=>{
+      document.getElementById('duel-opp-name-display') &&
+        (document.getElementById('duel-opp-name-display').textContent = qmOppName);
+      startDuelBattle();
+    }, 100);
+  }
+}
+
+function cancelQuickMatch(){
+  clearInterval(qmInterval);
+  clearInterval(qmTimerInterval);
+  qmSearching = false;
+  // Remove from queue
+  // Room will expire naturally — no cleanup needed
+  showScreen('title');
+}
+
+// ─── Also add Quick Match buttons inside PvP and Duel screens ───
+function addQmButtonsToPvp(){
+  // Called when showPvp() runs — inject a "Quick Match" button if not already there
+  const jl = document.getElementById('pvp-join-section');
+  if(!jl || jl.querySelector('.qm-inject')) return;
+  const btn = document.createElement('button');
+  btn.className = 'auth-btn qm-inject';
+  btn.style.cssText = 'background:linear-gradient(135deg,#9c27b0,#4a0072);box-shadow:0 4px 0 #2a0042;font-size:17px;padding:14px;margin-bottom:6px';
+  btn.innerHTML = '🎲 Quick Match — Find Random Opponent';
+  btn.onclick = () => { if(currentUser) { openQuickMatch(); } else toast('Log in first!'); };
+  jl.insertBefore(btn, jl.firstChild);
+}
+
 function openLeaderboard(){
   showScreen('leaderboard');
   loadLeaderboard();
@@ -7628,6 +8096,8 @@ function showTeacherOrStudent(){
   loadClassView();
 }
 async function loadClassView(){
+  // Load cross-class leaderboard immediately
+  loadCrossClassLb('xp');
   // Show current class info if student has a class code
   const code=S.classCode;
   const cur=document.getElementById('class-current');
@@ -7642,6 +8112,41 @@ async function loadClassView(){
     if(cur) cur.style.display='none';
   }
 }
+var cclTab='xp';
+async function loadCrossClassLb(tab){
+  cclTab=tab||cclTab;
+  // Update tab buttons
+  ['xp','wave','blocks'].forEach(t=>{
+    const btn=document.getElementById('ccl-tab-'+t);
+    if(btn) btn.classList.toggle('active',t===cclTab);
+  });
+  const el=document.getElementById('cross-class-lb');
+  if(!el) return;
+  el.innerHTML='<div style="color:rgba(255,255,255,.4);text-align:center;padding:20px">Loading...</div>';
+  const res=await sheetsCall('leaderboard',{}).catch(()=>null);
+  if(!res||!res.ok){
+    el.innerHTML='<div style="color:#f44336;text-align:center;padding:20px">Could not load. Check connection.</div>';
+    return;
+  }
+  const players=(res.players||[]).sort((a,b)=>(b[cclTab]||0)-(a[cclTab]||0)).slice(0,20);
+  const labels={xp:'⭐ XP',wave:'⚔️ Waves',blocks:'⛏️ Blocks'};
+  el.innerHTML='';
+  players.forEach((p,i)=>{
+    const isMe=currentUser&&p.email===currentUser.email;
+    const medals=['🥇','🥈','🥉'];
+    const row=document.createElement('div');
+    row.style.cssText='display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;margin-bottom:5px;background:'+(isMe?'rgba(124,77,255,.2)':'rgba(255,255,255,.04)')+';border:'+(isMe?'1px solid rgba(124,77,255,.4)':'1px solid transparent');
+    const rankEl=document.createElement('div');rankEl.style.cssText='font-size:18px;min-width:32px';rankEl.textContent=i<3?medals[i]:'#'+(i+1);
+    const nameEl=document.createElement('div');nameEl.style.cssText='flex:1;font-size:14px;color:'+(isMe?'#a78bfa':'#fff');
+    nameEl.textContent=p.fname+' '+(p.lname||'')+(p.classCode?' · Class '+p.classCode:'');
+    const scoreEl=document.createElement('div');scoreEl.style.cssText='font-size:14px;color:#ffb800';
+    scoreEl.textContent=((p[cclTab]||0).toLocaleString())+' '+labels[cclTab];
+    row.appendChild(rankEl);row.appendChild(nameEl);row.appendChild(scoreEl);
+    el.appendChild(row);
+  });
+  if(!players.length) el.innerHTML='<div style="color:rgba(255,255,255,.4);text-align:center;padding:20px">No players yet!</div>';
+}
+
 function renderClassLeaderboard(students){
   const el=document.getElementById('class-lb');
   if(!el)return;
