@@ -1462,6 +1462,8 @@ body{font-family:'Nunito',sans-serif;background:var(--sky);overflow:hidden;heigh
   <div class="world-crosshair">+</div>
   <div class="world-hint" id="world-hint">🖱️ Click to look · W/A/S/D move · Click to interact</div>
   <div id="world-interact-prompt"></div>
+  <button id="arena-attack-btn" onclick="swingSword()" style="display:none;position:fixed;bottom:100px;left:50%;transform:translateX(-50%);font-family:Fredoka One,cursive;font-size:20px;background:#f44336;color:#fff;border:none;border-radius:24px;padding:16px 44px;cursor:pointer;box-shadow:0 5px 0 #b71c1c;z-index:300;letter-spacing:1px">⚔️ ATTACK</button>
+  <button id="arena-bow-btn" onclick="shootArrow()" style="display:none;position:fixed;bottom:100px;right:20px;font-family:Fredoka One,cursive;font-size:18px;background:#ff9800;color:#fff;border:none;border-radius:20px;padding:14px 28px;cursor:pointer;box-shadow:0 4px 0 #e65100;z-index:300">🏹 SHOOT</button>
   <div id="arena-hud" class="world-top-hud" style="display:flex"></div>
   <div id="mine-3d-hud" class="world-top-hud" style="display:none"></div>
   <div id="forest-3d-hud" class="world-top-hud" style="display:none"></div>
@@ -3235,8 +3237,17 @@ function onWorldResize(){
 var usingRanged=false;
 function toggleWeapon(){
   usingRanged=!usingRanged;
-  if(usingRanged){removeSwordModel();buildBowModel();toast('🏹 Bow equipped! Right-click to shoot','green-toast');}
-  else{removeBowModel();if((S.toolLevel&&S.toolLevel.sword||0)>=1)buildSwordModel();toast('⚔️ Sword equipped!','green-toast');}
+  const ab=document.getElementById('arena-attack-btn');
+  const bb=document.getElementById('arena-bow-btn');
+  if(usingRanged){
+    removeSwordModel();buildBowModel();toast('🏹 Bow equipped! Right-click to shoot','green-toast');
+    if(ab&&currentWorld==='arena')ab.style.display='none';
+    if(bb&&currentWorld==='arena')bb.style.display='block';
+  } else {
+    removeBowModel();if((S.toolLevel&&S.toolLevel.sword||0)>=1)buildSwordModel();toast('⚔️ Sword equipped!','green-toast');
+    if(ab&&currentWorld==='arena')ab.style.display='block';
+    if(bb&&currentWorld==='arena')bb.style.display='none';
+  }
   updateArenaHud();
 }
 function onWorldClickLeft(){
@@ -3608,6 +3619,11 @@ function buildArena(){
   if(sl>=1)buildSwordModel();
   spawnArenaEnemies((S.mobWave||0)+1);
   updateArenaHud();worldCamera.position.set(0,1.7,14);
+  // Show attack buttons
+  const ab=document.getElementById('arena-attack-btn');
+  const bb=document.getElementById('arena-bow-btn');
+  if(ab)ab.style.display='block';
+  if(bb)bb.style.display='none'; // show bow btn only when bow equipped
 }
 
 function makeMobMesh(def,hpRatio=1){
@@ -3853,41 +3869,46 @@ function swingSword(){
   const sl=S.toolLevel&&S.toolLevel.sword||0;
   if(!sl){toast('No sword! Craft one first.','');return;}
   const tier=getToolTier(sl);
-  arenaCooldown=0.35*tier.speedMult; // faster base attack
+  arenaCooldown=0.35*tier.speedMult;
   swordSwinging=true;swordSwingT=0;
 
-  // METHOD 1: Raycast (recursive=true to catch all child meshes)
-  worldRaycaster.setFromCamera({x:0,y:0},worldCamera);
-  const hits=worldRaycaster.intersectObjects(worldInteractables,true);
-  let hitMobRef=null;
-  const eh=hits.find(h=>h.object.userData.type==='enemy'&&h.distance<8);
-  if(eh){
-    hitMobRef=arenaEnemies.find(m=>m.id===eh.object.userData.mobId&&!m.dead);
-  }
+  const cam=worldCamera.position;
+  const fwd=new THREE.Vector3();
+  worldCamera.getWorldDirection(fwd);
 
-  // METHOD 2: Fallback - proximity check if raycast missed
-  // Catches cases where mob is too close or fills the whole screen
-  if(!hitMobRef){
-    const cam=worldCamera.position;
-    const fwd=new THREE.Vector3();worldCamera.getWorldDirection(fwd);
-    arenaEnemies.forEach(mob=>{
-      if(mob.dead||hitMobRef)return;
-      const dx=mob.mesh.position.x-cam.x;
-      const dz=mob.mesh.position.z-cam.z;
-      const dist=Math.sqrt(dx*dx+dz*dz);
-      if(dist>7.0)return; // melee range
-      // Check if mob is roughly in front of player
-      const toMob=new THREE.Vector3(dx,0,dz).normalize();
-      const dot=fwd.dot(toMob);
-      if(dot>0.4) hitMobRef=mob; // within ~66 degree arc in front
-    });
-  }
+  // Find closest mob in front — no pointer lock needed
+  let hitMobRef=null;
+  let bestScore=-Infinity;
+
+  arenaEnemies.forEach(mob=>{
+    if(mob.dead||!mob.mesh)return;
+    const dx=mob.mesh.position.x-cam.x;
+    const dy=mob.mesh.position.y-cam.y;
+    const dz=mob.mesh.position.z-cam.z;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+
+    // Hard distance cap — must be within 8 units
+    if(dist>8)return;
+
+    // Score = closeness + how "in front" the mob is
+    const toMob=new THREE.Vector3(dx,0,dz).normalize();
+    const dot=fwd.dot(toMob);
+
+    // dot > 0 means mob is in front hemisphere; > 0.3 = roughly facing it
+    // But if mob is very close (< 3 units) hit it regardless of angle
+    const score=(dist<3?10:dot)*1/(dist+0.1);
+    if((dist<3||dot>0.25)&&score>bestScore){
+      bestScore=score;
+      hitMobRef=mob;
+    }
+  });
 
   if(hitMobRef){
     const crit=Math.random()<0.1+sl*0.03;
     const baseDmg=Math.round((18+sl*5)*tier.attackMult*(crit?2:1)*(0.85+Math.random()*0.3));
     hitMob(hitMobRef,baseDmg,crit);
   } else {
+    // No mob in range - show miss
     showWorldDmg('miss','rgba(255,255,255,0.35)');
   }
 }
@@ -4744,6 +4765,10 @@ function goBackToQuestions(){
   stopWorld();
   hideMineProgress();
   clearInterval(arenaEnemyTimer);
+  const ab=document.getElementById('arena-attack-btn');
+  const bb=document.getElementById('arena-bow-btn');
+  if(ab)ab.style.display='none';
+  if(bb)bb.style.display='none';
   showScreen('title');
 }
 
