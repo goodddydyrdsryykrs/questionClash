@@ -5804,6 +5804,33 @@ function startDuelBattle(){
 
 
 
+
+// ════════════════════════════════════════════
+// PvP STATE VARIABLES
+// ════════════════════════════════════════════
+var pvpRenderer=null, pvpScene=null, pvpCamera=null;
+var pvpAnimFrame=null, pvpTimerInterval=null;
+var pvpState='idle';          // idle | countdown | battle | roundover | matchover
+var pvpIsHost=false;
+var pvpRoomCode=null;
+var pvpOppNameVal='Opponent';
+var pvpKeys={}, pvpYaw=0, pvpPitch=0;
+var pvpPointerLocked=false;
+var pvpMouseDx=0, pvpMouseDy=0;
+var pvpMyHp=100, pvpMyMaxHp=100;
+var pvpOppHp=100, pvpOppMaxHp=100;
+var pvpMyKills=0, pvpOppKills_kills=0;
+var pvpDamageSentTotal=0, pvpDmgReceivedTotal=0;
+var pvpTimeLeft=120;
+var pvpDead=false, pvpRespawnTimer=3;
+var pvpRound=1, pvpMaxRounds=3;
+var pvpArrows=[], pvpArrowCooldown=0, pvpSwordCooldown=0;
+var pvpUsingBow=false;
+var pvpWeaponMesh=null, pvpOppMesh=null;
+var pvpOppPos={x:0,y:0,z:-10};
+var pvpSwinging=false, pvpSwingT=0;
+var pvpPollInterval=null;
+
 // ══════════════════════
 // BUILD ARENA
 // ══════════════════════
