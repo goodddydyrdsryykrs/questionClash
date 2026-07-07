@@ -1969,10 +1969,7 @@ function answerQ(idx, btn) {
 
   const correct = idx === curQ.ans;
   btn.classList.add(correct ? 'correct' : 'wrong');
-  if (!correct) {
-    const allOpts = document.querySelectorAll('.q-opt');
-    if (allOpts[curQ.ans]) allOpts[curQ.ans].classList.add('correct');
-  }
+  // Don't highlight correct answer on wrong — handled in else block
 
   const fb = document.getElementById('q-feedback');
   const fbMain = document.getElementById('q-feedback-main');
@@ -2010,14 +2007,31 @@ function answerQ(idx, btn) {
     if (cont) cont.style.display = 'inline-block';
     syncHud();
   } else {
-    if (fbMain) fbMain.textContent = '❌ Not quite! The answer was: ' + curQ.opts[curQ.ans];
-    if (explEl) { explEl.textContent = curQ.explain || ''; explEl.style.display = curQ.explain ? 'block' : 'none'; }
+    // Wrong answer:
+    // 1. Don't show which answer was correct
+    // 2. Don't highlight the correct button
+    // 3. 3-second delay then auto-advance (don't show continue button)
+    // 4. Don't count on the progress bar (streak stays same)
+
+    // Remove the 'correct' class we added to the right answer
+    document.querySelectorAll('.q-opt').forEach(b => b.classList.remove('correct'));
+
+    if (fbMain) { fbMain.textContent = '❌ Wrong! Moving on...'; fbMain.style.color = '#f44336'; }
+    if (explEl) { explEl.style.display = 'none'; }
+
+    // Streak does NOT advance — wrong answer doesn't count
+    // (S.streak stays the same, updateQDots not called)
+
     const cdEl = document.getElementById('q-countdown');
     const cdNum = document.getElementById('countdown-num');
     const cdBar = document.getElementById('countdown-bar');
-    if (cdEl) { cdEl.style.display = 'flex'; }
-    if (cdBar) { cdBar.style.width = '100%'; setTimeout(() => { cdBar.style.width = '0%'; }, 50); }
-    let rem = 5;
+    if (cdEl) cdEl.style.display = 'flex';
+    if (cdBar) {
+      cdBar.style.transition = 'none';
+      cdBar.style.width = '100%';
+      setTimeout(() => { cdBar.style.transition = 'width 3s linear'; cdBar.style.width = '0%'; }, 30);
+    }
+    let rem = 3;
     if (cdNum) cdNum.textContent = rem;
     countdownInterval = setInterval(() => {
       rem--;
@@ -2025,8 +2039,9 @@ function answerQ(idx, btn) {
       if (rem <= 0) {
         clearInterval(countdownInterval);
         if (cdEl) cdEl.style.display = 'none';
-        const cont = document.getElementById('q-continue');
-        if (cont) cont.style.display = 'inline-block';
+        if (cdBar) { cdBar.style.transition = 'none'; cdBar.style.width = '100%'; }
+        // Auto-advance to next question — NO continue button shown
+        loadQ();
       }
     }, 1000);
   }
@@ -5861,12 +5876,20 @@ function startPvpCountdown(){
 }
 
 function startPvpArena(){
-  // Hide ALL matchmaking/countdown overlays so 3D canvas is visible
-  ['pvp-matchmaking','pvp-waiting','pvp-join-section',
-   'pvp-countdown-overlay','pvp-battle-hud'].forEach(id=>{
+  // Hide matchmaking CONTENT but keep container transparent so canvas shows through
+  // (battle-hud is also a child of pvp-matchmaking so we can't hide the parent)
+  ['pvp-waiting','pvp-join-section','pvp-countdown-overlay'].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.style.display='none';
   });
+  // Make pvp-matchmaking transparent and non-interactive so canvas shows through
+  const mmEl=document.getElementById('pvp-matchmaking');
+  if(mmEl){
+    mmEl.style.background='transparent';
+    mmEl.style.pointerEvents='none';
+    mmEl.style.backdropFilter='none';
+    mmEl.style.webkitBackdropFilter='none';
+  }
   pvpState='battle';
   pvpMyKills=0; pvpOppKills_kills=0; pvpRound=1;
   pvpMyHp=100; pvpOppHp=100; pvpTimeLeft=120;
@@ -5919,8 +5942,9 @@ function startPvpArena(){
   document.addEventListener('keyup',onPvpKeyUp);
 
   // HUD
-  // Show battle HUD (was hidden at start of this function)
-  document.getElementById('pvp-battle-hud').style.display='block';
+  // Show battle HUD and make it interactive
+  const bhud=document.getElementById('pvp-battle-hud');
+  if(bhud){ bhud.style.display='block'; bhud.style.pointerEvents='auto'; }
   document.getElementById('pvp-my-name-hud').textContent=(currentUser.fname||'YOU').toUpperCase();
   document.getElementById('pvp-opp-name-hud').textContent=pvpOppNameVal.toUpperCase();
   updatePvpHud();
